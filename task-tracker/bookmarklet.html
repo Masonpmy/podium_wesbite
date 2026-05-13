@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bookmarklet — Task Tracker</title>
+  <meta name="theme-color" content="#0f172a">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white min-h-screen font-sans antialiased">
+<div class="max-w-xl mx-auto px-4 py-10 space-y-8">
+
+  <!-- Header -->
+  <div class="text-center space-y-2">
+    <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-sky-500/20 border border-sky-500/30 mb-2">
+      <span class="text-3xl">🔖</span>
+    </div>
+    <h1 class="text-2xl font-bold">Outlook Web Bookmarklet</h1>
+    <p class="text-slate-400 text-sm">One click to import any email as a task — directly from Outlook Web.</p>
+  </div>
+
+  <!-- Step 1: Enter topic -->
+  <section class="bg-slate-800 border border-slate-700 rounded-2xl p-5 space-y-4">
+    <h2 class="text-sm font-bold text-sky-400 uppercase tracking-wide">Step 1 — Enter your details</h2>
+    <div class="space-y-3">
+      <div>
+        <label class="block text-xs font-medium text-slate-400 mb-1.5">Your ntfy.sh topic</label>
+        <input id="bm-topic" type="text" placeholder="sunway-yourname-abc123"
+          class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 text-sm"
+          autocomplete="off" autocorrect="off" spellcheck="false">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400 mb-1.5">Task Tracker URL <span class="text-slate-600">(where your tracker is hosted)</span></label>
+        <input id="bm-url" type="text" placeholder="https://your-tracker.netlify.app"
+          class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 text-sm">
+        <p class="text-xs text-slate-600 mt-1">Leave blank to use ntfy.sh push only (no tab switch)</p>
+      </div>
+      <button id="generate-btn"
+        class="w-full bg-sky-500 hover:bg-sky-400 active:bg-sky-600 text-white font-semibold py-3 rounded-xl transition-colors">
+        Generate Bookmarklet
+      </button>
+    </div>
+  </section>
+
+  <!-- Step 2: Drag to bookmarks -->
+  <section id="bm-result" class="hidden bg-slate-800 border border-slate-700 rounded-2xl p-5 space-y-4">
+    <h2 class="text-sm font-bold text-sky-400 uppercase tracking-wide">Step 2 — Add to your bookmarks bar</h2>
+    <p class="text-sm text-slate-300">Drag this button to your <strong class="text-white">browser bookmarks bar</strong>:</p>
+
+    <div class="flex justify-center py-2">
+      <a id="bm-link" href="#" class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-5 py-3 rounded-xl shadow-lg text-sm select-none cursor-grab active:cursor-grabbing">
+        📋 Add to Tasks
+      </a>
+    </div>
+
+    <div class="bg-slate-700/40 rounded-xl p-3 text-xs text-slate-400 space-y-1">
+      <p class="font-medium text-slate-300">Can't drag? Do this instead:</p>
+      <ol class="space-y-1 list-none">
+        <li>1. Right-click the button → <strong class="text-white">Copy Link Address</strong></li>
+        <li>2. Open your bookmarks → Add new bookmark</li>
+        <li>3. Paste the link as the URL</li>
+        <li>4. Name it <strong class="text-white">Add to Tasks</strong></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- Step 3: Using it -->
+  <section class="bg-slate-800 border border-slate-700 rounded-2xl p-5 space-y-3">
+    <h2 class="text-sm font-bold text-sky-400 uppercase tracking-wide">Step 3 — How to use it</h2>
+    <div class="space-y-3 text-sm text-slate-300">
+      <div class="flex items-start gap-3">
+        <span class="flex-shrink-0 w-6 h-6 rounded-full bg-slate-700 text-xs flex items-center justify-center font-bold text-sky-400">1</span>
+        <span>Open <strong class="text-white">outlook.office.com</strong> in your browser and click on any email</span>
+      </div>
+      <div class="flex items-start gap-3">
+        <span class="flex-shrink-0 w-6 h-6 rounded-full bg-slate-700 text-xs flex items-center justify-center font-bold text-sky-400">2</span>
+        <span>Click the <strong class="text-white">📋 Add to Tasks</strong> bookmark</span>
+      </div>
+      <div class="flex items-start gap-3">
+        <span class="flex-shrink-0 w-6 h-6 rounded-full bg-slate-700 text-xs flex items-center justify-center font-bold text-sky-400">3</span>
+        <span>A popup asks for the urgency level — pick one</span>
+      </div>
+      <div class="flex items-start gap-3">
+        <span class="flex-shrink-0 w-6 h-6 rounded-full bg-slate-700 text-xs flex items-center justify-center font-bold text-sky-400">4</span>
+        <span>The task appears in your tracker within seconds ✓</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Works on Teams too -->
+  <section class="bg-slate-800/40 border border-slate-700/60 rounded-2xl p-5 space-y-2">
+    <h3 class="text-sm font-semibold text-white">💬 Works on Teams Web too</h3>
+    <p class="text-sm text-slate-400">The bookmarklet also works on <code class="bg-slate-700 px-1.5 py-0.5 rounded text-xs">teams.microsoft.com</code>. It reads the page title and sends the task as a Teams source.</p>
+  </section>
+
+  <div class="text-center">
+    <a href="index.html" class="inline-flex items-center gap-2 text-sky-400 hover:text-sky-300 text-sm font-medium transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+      Back to Task Tracker
+    </a>
+  </div>
+</div>
+
+<script>
+document.getElementById('generate-btn').addEventListener('click', () => {
+  const topic = document.getElementById('bm-topic').value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
+  const trackerUrl = document.getElementById('bm-url').value.trim().replace(/\/$/, '');
+
+  if (!topic) {
+    document.getElementById('bm-topic').classList.add('ring-2', 'ring-red-500');
+    return;
+  }
+
+  // Build the bookmarklet code
+  const code = `
+(function(){
+  var title = document.title || 'New Task';
+  var source = window.location.hostname.includes('teams') ? 'teams' : 'outlook';
+  var sender = '';
+  try {
+    var senderEl = document.querySelector('[class*="sender"]') || document.querySelector('[data-testid*="sender"]');
+    if (senderEl) sender = senderEl.innerText.trim().split('\\n')[0];
+  } catch(e){}
+  var opts = ['urgent','non-urgent','rescheduled','cancelled'];
+  var choice = prompt('Task urgency for:\\n"' + title.slice(0,80) + '"\\n\\n1 = Urgent\\n2 = Non-urgent\\n3 = Rescheduled\\n4 = Cancelled\\n\\nEnter 1-4:');
+  var status = opts[(parseInt(choice,10)||2)-1] || 'non-urgent';
+  var ntfyTopic = '${topic}';
+  var payload = JSON.stringify({
+    title: title.slice(0,200),
+    message: 'From: ' + (sender||'Outlook') + ' | Source: ' + source,
+    tags: [status],
+    priority: status==='urgent'?4:3
+  });
+  fetch('https://ntfy.sh/'+ntfyTopic, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: payload
+  }).then(function(){
+    alert('\\u2713 Task added as '+status+'!');
+    ${trackerUrl ? `window.open('${trackerUrl}','_blank');` : ''}
+  }).catch(function(){
+    alert('\\u26a0 Failed to add task. Check your internet connection.');
+  });
+})();
+  `.replace(/\s+/g, ' ').trim();
+
+  const href = 'javascript:' + encodeURIComponent(code);
+  document.getElementById('bm-link').href = href;
+  document.getElementById('bm-result').classList.remove('hidden');
+  document.getElementById('bm-result').scrollIntoView({ behavior: 'smooth' });
+});
+</script>
+</body>
+</html>

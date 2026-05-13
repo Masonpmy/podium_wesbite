@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Task Tracker</title>
+  <meta name="description" content="Real-time task tracker for Outlook &amp; Teams">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Tasks">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { -webkit-tap-highlight-color: transparent; }
+    body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+
+    .col-scroll { overflow-y: auto; max-height: calc(100vh - 160px); }
+    .col-scroll::-webkit-scrollbar { width: 4px; }
+    .col-scroll::-webkit-scrollbar-track { background: transparent; }
+    .col-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+
+    .board-scroll { overflow-x: auto; display: flex; gap: 16px; padding: 16px; min-height: calc(100vh - 120px); }
+    .board-scroll::-webkit-scrollbar { height: 4px; }
+    .board-scroll::-webkit-scrollbar-track { background: transparent; }
+    .board-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+
+    .task-card { cursor: grab; transition: transform 0.15s, opacity 0.15s, box-shadow 0.15s; }
+    .task-card:active { cursor: grabbing; transform: scale(0.97); opacity: 0.85; }
+    .task-card.dragging { opacity: 0.4; transform: scale(0.95); }
+    .drop-zone.drag-over { box-shadow: inset 0 0 0 2px #0ea5e9; background: rgba(14,165,233,0.06); }
+
+    .fade-in { animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    .pulse-dot { animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    .modal-backdrop { backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+
+    @media (max-width: 767px) {
+      .desktop-board { display: none !important; }
+      .mobile-board { display: block !important; }
+    }
+    @media (min-width: 768px) {
+      .desktop-board { display: flex !important; }
+      .mobile-board { display: none !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-white min-h-screen font-sans antialiased">
+
+<!-- ═══════════════════ SETUP SCREEN ═══════════════════ -->
+<div id="setup-screen" class="hidden fixed inset-0 bg-slate-900 z-50 flex items-center justify-center p-6">
+  <div class="w-full max-w-md">
+    <div class="text-center mb-8">
+      <div class="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-sky-500/20 border border-sky-500/30 mb-4">
+        <svg class="w-10 h-10 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+        </svg>
+      </div>
+      <h1 class="text-2xl font-bold text-white">Task Tracker</h1>
+      <p class="text-slate-400 mt-1 text-sm">Real-time tasks from Outlook &amp; Teams</p>
+    </div>
+
+    <div class="bg-slate-800 rounded-2xl p-6 space-y-5 border border-slate-700">
+      <div>
+        <label class="block text-sm font-medium text-slate-300 mb-2">Your unique topic name</label>
+        <input id="setup-topic" type="text" placeholder="e.g. sunway-mason-2024-xyz"
+          class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm"
+          autocomplete="off" autocorrect="off" spellcheck="false">
+        <p class="mt-2 text-xs text-slate-500">Pick any unique name — lowercase letters, numbers, hyphens only. <span class="text-sky-400">Keep it private.</span></p>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-300 mb-2">Your name <span class="text-slate-500 font-normal">(optional)</span></label>
+        <input id="setup-name" type="text" placeholder="e.g. Mason"
+          class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm">
+      </div>
+      <button id="setup-btn"
+        class="w-full bg-sky-500 hover:bg-sky-400 active:bg-sky-600 text-white font-semibold py-3 rounded-xl transition-colors">
+        Get Started
+      </button>
+    </div>
+
+    <p class="text-center text-xs text-slate-600 mt-4">No account needed · Data stays in your browser</p>
+  </div>
+</div>
+
+<!-- ═══════════════════ MAIN APP ═══════════════════ -->
+<div id="app" class="hidden">
+
+  <!-- Header -->
+  <header class="sticky top-0 z-30 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-4 py-3">
+    <div class="max-w-screen-xl mx-auto flex items-center justify-between gap-3">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="flex-shrink-0 w-8 h-8 rounded-lg bg-sky-500/20 border border-sky-500/30 flex items-center justify-center">
+          <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+          </svg>
+        </div>
+        <div class="min-w-0">
+          <h1 class="text-sm font-bold text-white leading-tight">Task Tracker</h1>
+          <div id="user-label" class="text-xs text-slate-500 truncate"></div>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <!-- Connection status -->
+        <div id="conn-badge" class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700">
+          <span id="conn-dot" class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+          <span id="conn-text" class="text-slate-400">Offline</span>
+        </div>
+        <!-- Settings button -->
+        <button id="settings-btn" class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" title="Settings">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+        <!-- Add task button -->
+        <button id="add-btn"
+          class="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-400 active:bg-sky-600 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+          </svg>
+          <span class="hidden sm:inline">Add Task</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Mobile tab bar -->
+  <nav id="mobile-tabs" class="mobile-board sticky top-[57px] z-20 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-4">
+    <div class="flex overflow-x-auto gap-1 py-2 no-scrollbar">
+      <button class="tab-btn flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors" data-col="urgent">
+        <span class="w-2 h-2 rounded-full bg-red-500"></span>
+        Urgent <span id="tab-count-urgent" class="text-red-400 font-bold">0</span>
+      </button>
+      <button class="tab-btn flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors" data-col="non-urgent">
+        <span class="w-2 h-2 rounded-full bg-yellow-500"></span>
+        Non-urgent <span id="tab-count-non-urgent" class="text-yellow-400 font-bold">0</span>
+      </button>
+      <button class="tab-btn flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors" data-col="rescheduled">
+        <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+        Rescheduled <span id="tab-count-rescheduled" class="text-blue-400 font-bold">0</span>
+      </button>
+      <button class="tab-btn flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors" data-col="cancelled">
+        <span class="w-2 h-2 rounded-full bg-slate-500"></span>
+        Cancelled <span id="tab-count-cancelled" class="text-slate-400 font-bold">0</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Mobile: single column view -->
+  <div id="mobile-board" class="mobile-board p-4">
+    <div id="mobile-col" class="space-y-3"></div>
+  </div>
+
+  <!-- Desktop: 4-column board -->
+  <div id="desktop-board" class="desktop-board board-scroll">
+    <div id="col-urgent"     class="drop-zone flex-shrink-0 w-72 rounded-2xl border border-red-900/40    bg-red-950/20    p-3">
+      <div class="flex items-center gap-2 mb-3 px-1">
+        <span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+        <span class="text-sm font-semibold text-red-300">Urgent</span>
+        <span id="count-urgent"     class="ml-auto text-xs font-bold bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full">0</span>
+      </div>
+      <div id="tasks-urgent"     class="col-scroll space-y-2 min-h-16"></div>
+    </div>
+    <div id="col-non-urgent" class="drop-zone flex-shrink-0 w-72 rounded-2xl border border-yellow-900/40 bg-yellow-950/20 p-3">
+      <div class="flex items-center gap-2 mb-3 px-1">
+        <span class="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
+        <span class="text-sm font-semibold text-yellow-300">Non-urgent</span>
+        <span id="count-non-urgent" class="ml-auto text-xs font-bold bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full">0</span>
+      </div>
+      <div id="tasks-non-urgent" class="col-scroll space-y-2 min-h-16"></div>
+    </div>
+    <div id="col-rescheduled" class="drop-zone flex-shrink-0 w-72 rounded-2xl border border-blue-900/40  bg-blue-950/20   p-3">
+      <div class="flex items-center gap-2 mb-3 px-1">
+        <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+        <span class="text-sm font-semibold text-blue-300">Rescheduled</span>
+        <span id="count-rescheduled" class="ml-auto text-xs font-bold bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">0</span>
+      </div>
+      <div id="tasks-rescheduled" class="col-scroll space-y-2 min-h-16"></div>
+    </div>
+    <div id="col-cancelled"  class="drop-zone flex-shrink-0 w-72 rounded-2xl border border-slate-700     bg-slate-800/40  p-3">
+      <div class="flex items-center gap-2 mb-3 px-1">
+        <span class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+        <span class="text-sm font-semibold text-slate-300">Cancelled</span>
+        <span id="count-cancelled"  class="ml-auto text-xs font-bold bg-slate-500/20 text-slate-400 px-2 py-0.5 rounded-full">0</span>
+      </div>
+      <div id="tasks-cancelled"  class="col-scroll space-y-2 min-h-16"></div>
+    </div>
+  </div>
+
+  <!-- Paste import button (floating) -->
+  <button id="paste-btn"
+    class="fixed bottom-6 left-6 flex items-center gap-2 bg-slate-700 hover:bg-slate-600 active:bg-slate-800 text-white text-xs font-semibold px-4 py-3 rounded-2xl shadow-lg transition-colors border border-slate-600"
+    style="bottom: calc(1.5rem + env(safe-area-inset-bottom))">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+    </svg>
+    Paste Email
+  </button>
+</div>
+
+<!-- ═══════════════════ ADD TASK MODAL ═══════════════════ -->
+<div id="add-modal" class="hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-6">
+  <div class="modal-backdrop absolute inset-0 bg-black/60" id="add-modal-bg"></div>
+  <div class="relative w-full sm:max-w-lg bg-slate-800 rounded-t-3xl sm:rounded-2xl border border-slate-700 shadow-2xl p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <h2 class="text-base font-bold text-white">Add Task</h2>
+      <button id="add-modal-close" class="text-slate-400 hover:text-white transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="space-y-3">
+      <input id="task-title" type="text" placeholder="Task title (e.g. Submit Assignment by Friday)"
+        class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm">
+      <input id="task-sender" type="text" placeholder="Sender / Lecturer name"
+        class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm">
+      <div class="grid grid-cols-2 gap-3">
+        <select id="task-source" class="bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-sky-500 text-sm">
+          <option value="outlook">📧 Outlook</option>
+          <option value="teams">💬 Teams</option>
+          <option value="manual">✏️ Manual</option>
+        </select>
+        <select id="task-status" class="bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-sky-500 text-sm">
+          <option value="urgent">🔴 Urgent</option>
+          <option value="non-urgent">🟡 Non-urgent</option>
+          <option value="rescheduled">🔄 Rescheduled</option>
+          <option value="cancelled">⬛ Cancelled</option>
+        </select>
+      </div>
+      <textarea id="task-body" rows="3" placeholder="Notes or email snippet (optional)"
+        class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm resize-none"></textarea>
+    </div>
+    <button id="add-modal-submit"
+      class="w-full bg-sky-500 hover:bg-sky-400 active:bg-sky-600 text-white font-semibold py-3 rounded-xl transition-colors">
+      Add Task
+    </button>
+  </div>
+</div>
+
+<!-- ═══════════════════ PASTE IMPORT MODAL ═══════════════════ -->
+<div id="paste-modal" class="hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-6">
+  <div class="modal-backdrop absolute inset-0 bg-black/60" id="paste-modal-bg"></div>
+  <div class="relative w-full sm:max-w-lg bg-slate-800 rounded-t-3xl sm:rounded-2xl border border-slate-700 shadow-2xl p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <h2 class="text-base font-bold text-white">Import from Email</h2>
+      <button id="paste-modal-close" class="text-slate-400 hover:text-white transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <p class="text-xs text-slate-400">Paste the full email text below. The tracker will auto-detect the urgency level.</p>
+    <textarea id="paste-input" rows="7" placeholder="Paste email content here..."
+      class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm resize-none font-mono"></textarea>
+    <!-- Preview card -->
+    <div id="paste-preview" class="hidden bg-slate-750 border border-slate-600 rounded-xl p-4 space-y-1">
+      <p class="text-xs text-slate-400 font-medium uppercase tracking-wide">Preview</p>
+      <p id="preview-title" class="text-sm font-semibold text-white"></p>
+      <p id="preview-sender" class="text-xs text-slate-400"></p>
+      <span id="preview-status" class="inline-block text-xs px-2 py-0.5 rounded-full font-medium mt-1"></span>
+    </div>
+    <div class="flex gap-3">
+      <button id="paste-detect-btn"
+        class="flex-1 bg-slate-700 hover:bg-slate-600 active:bg-slate-800 text-white text-sm font-semibold py-3 rounded-xl transition-colors border border-slate-600">
+        Detect
+      </button>
+      <button id="paste-import-btn"
+        class="flex-1 bg-sky-500 hover:bg-sky-400 active:bg-sky-600 text-white text-sm font-semibold py-3 rounded-xl transition-colors">
+        Import Task
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ SETTINGS MODAL ═══════════════════ -->
+<div id="settings-modal" class="hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-6">
+  <div class="modal-backdrop absolute inset-0 bg-black/60" id="settings-modal-bg"></div>
+  <div class="relative w-full sm:max-w-md bg-slate-800 rounded-t-3xl sm:rounded-2xl border border-slate-700 shadow-2xl p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <h2 class="text-base font-bold text-white">Settings</h2>
+      <button id="settings-modal-close" class="text-slate-400 hover:text-white transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="space-y-3">
+      <div>
+        <label class="block text-xs font-medium text-slate-400 mb-1.5">ntfy.sh topic</label>
+        <input id="settings-topic" type="text"
+          class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 text-sm"
+          autocomplete="off" autocorrect="off" spellcheck="false">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400 mb-1.5">Your name</label>
+        <input id="settings-name" type="text"
+          class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 text-sm">
+      </div>
+    </div>
+    <div class="flex gap-3">
+      <button id="settings-clear-btn"
+        class="flex-1 bg-red-900/40 hover:bg-red-900/60 text-red-400 text-sm font-semibold py-3 rounded-xl transition-colors border border-red-900/60">
+        Clear All Tasks
+      </button>
+      <button id="settings-save-btn"
+        class="flex-1 bg-sky-500 hover:bg-sky-400 text-white text-sm font-semibold py-3 rounded-xl transition-colors">
+        Save
+      </button>
+    </div>
+    <div class="pt-2 border-t border-slate-700">
+      <p class="text-xs text-slate-500 mb-2">Test your ntfy.sh connection</p>
+      <button id="settings-test-btn"
+        class="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-medium py-2.5 rounded-xl transition-colors border border-slate-600">
+        Send Test Task
+      </button>
+    </div>
+    <div class="pt-2 border-t border-slate-700 flex gap-3">
+      <a href="setup-guide.html" target="_blank"
+        class="flex-1 text-center text-xs text-sky-400 hover:text-sky-300 py-2 rounded-xl bg-sky-500/10 border border-sky-500/20">
+        📖 Setup Guide
+      </a>
+      <a href="bookmarklet.html" target="_blank"
+        class="flex-1 text-center text-xs text-sky-400 hover:text-sky-300 py-2 rounded-xl bg-sky-500/10 border border-sky-500/20">
+        🔖 Bookmarklet
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ TOAST ═══════════════════ -->
+<div id="toast" class="hidden fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-slate-700 border border-slate-600 text-white text-sm font-medium px-4 py-2.5 rounded-2xl shadow-lg flex items-center gap-2"></div>
+
+<script>
+// ═══════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════
+const STORAGE_KEY = 'tasktracker_v1';
+const STATUSES = ['urgent', 'non-urgent', 'rescheduled', 'cancelled'];
+
+const STATUS_META = {
+  'urgent':     { label: 'Urgent',      dot: 'bg-red-500',    badge: 'bg-red-500/20 text-red-300',    border: 'border-red-800'    },
+  'non-urgent': { label: 'Non-urgent',  dot: 'bg-yellow-500', badge: 'bg-yellow-500/20 text-yellow-300', border: 'border-yellow-800' },
+  'rescheduled':{ label: 'Rescheduled', dot: 'bg-blue-500',   badge: 'bg-blue-500/20 text-blue-300',  border: 'border-blue-800'   },
+  'cancelled':  { label: 'Cancelled',   dot: 'bg-slate-500',  badge: 'bg-slate-500/20 text-slate-400', border: 'border-slate-700'  }
+};
+
+const SOURCE_META = {
+  'outlook': { icon: '📧', label: 'Outlook' },
+  'teams':   { icon: '💬', label: 'Teams'   },
+  'manual':  { icon: '✏️', label: 'Manual'  }
+};
+
+const URGENT_WORDS = ['urgent','asap','immediately','deadline','tonight','overdue','critical','final','due today','important','attention','required','mandatory','must'];
+const CANCELLED_WORDS = ['cancelled','canceled','cancel','called off','no longer','terminated','postponed indefinitely'];
+const RESCHEDULED_WORDS = ['rescheduled','moved to','new date','new time','postponed to','changed to','rearranged'];
+
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+let state = { topic: '', name: '', tasks: [] };
+let eventSource = null;
+let draggedId = null;
+let activeTab = 'urgent';
+let parsedPaste = null;
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) state = { ...state, ...JSON.parse(raw) };
+  } catch(_) {}
+}
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+// ═══════════════════════════════════════════════
+// URGENCY DETECTION
+// ═══════════════════════════════════════════════
+function detectStatus(text) {
+  const t = text.toLowerCase();
+  if (CANCELLED_WORDS.some(w => t.includes(w)))   return 'cancelled';
+  if (RESCHEDULED_WORDS.some(w => t.includes(w))) return 'rescheduled';
+  if (URGENT_WORDS.some(w => t.includes(w)))       return 'urgent';
+  return 'non-urgent';
+}
+
+function parseEmailText(raw) {
+  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  let subject = '', sender = '', body = '';
+
+  for (const line of lines) {
+    const low = line.toLowerCase();
+    if (low.startsWith('subject:')) { subject = line.slice(8).trim(); continue; }
+    if (low.startsWith('from:'))    { sender  = line.slice(5).trim(); continue; }
+  }
+  if (!subject) subject = lines[0] || 'Untitled Task';
+  body = raw.slice(0, 300);
+  const status = detectStatus(subject + ' ' + raw);
+  return { subject, sender, body, status };
+}
+
+// ═══════════════════════════════════════════════
+// TASK CRUD
+// ═══════════════════════════════════════════════
+function createTask({ title, source = 'manual', sender = '', body = '', status = 'non-urgent' }) {
+  return {
+    id: crypto.randomUUID(),
+    title: title.trim(),
+    source,
+    sender: sender.trim(),
+    body: body.slice(0, 300),
+    status,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function addTask(task) {
+  state.tasks.unshift(task);
+  saveState();
+  renderBoard();
+  triggerNotification(task);
+  showToast(`${SOURCE_META[task.source]?.icon || '📋'} Task added: ${task.title.slice(0, 40)}`);
+}
+
+function updateTaskStatus(id, newStatus) {
+  const t = state.tasks.find(t => t.id === id);
+  if (!t) return;
+  t.status = newStatus;
+  t.updatedAt = new Date().toISOString();
+  saveState();
+  renderBoard();
+}
+
+function deleteTask(id) {
+  state.tasks = state.tasks.filter(t => t.id !== id);
+  saveState();
+  renderBoard();
+  showToast('Task removed');
+}
+
+// ═══════════════════════════════════════════════
+// ntfy.sh REAL-TIME CONNECTION
+// ═══════════════════════════════════════════════
+function connectSSE(topic) {
+  if (eventSource) { eventSource.close(); eventSource = null; }
+  if (!topic) return;
+
+  setConnStatus('connecting');
+  eventSource = new EventSource(`https://ntfy.sh/${encodeURIComponent(topic)}/sse`);
+
+  eventSource.onopen = () => setConnStatus('connected');
+  eventSource.onerror = () => {
+    setConnStatus('disconnected');
+    // Auto-reconnect after 15 seconds
+    setTimeout(() => { if (state.topic) connectSSE(state.topic); }, 15000);
+  };
+
+  eventSource.addEventListener('message', e => {
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.event !== 'message') return;
+      const task = parseNtfyMessage(msg);
+      addTask(task);
+    } catch(_) {}
+  });
+}
+
+function parseNtfyMessage(msg) {
+  // Expected format from Make.com:
+  // title: "Email subject" or "Teams message"
+  // message: "From: sender@email.com | Source: outlook"
+  // tags: ["urgent"] or ["non-urgent"] etc.
+  const parts = (msg.message || '').split('|').map(s => s.trim());
+  const sender = (parts[0] || '').replace(/^from:\s*/i, '') || 'Unknown';
+  const source = (parts[1] || '').replace(/^source:\s*/i, '').toLowerCase();
+  const validSource = ['outlook','teams','manual'].includes(source) ? source : 'outlook';
+  const tag = (msg.tags || [])[0] || '';
+  const status = STATUSES.includes(tag) ? tag : detectStatus(msg.title + ' ' + msg.message);
+
+  return createTask({
+    title: msg.title || 'New Task',
+    source: validSource,
+    sender,
+    body: msg.message || '',
+    status
+  });
+}
+
+function setConnStatus(state) {
+  const dot  = document.getElementById('conn-dot');
+  const text = document.getElementById('conn-text');
+  const badge = document.getElementById('conn-badge');
+  const map = {
+    connected:    { dot: 'bg-green-400 pulse-dot', text: 'Live',         badge: 'border-green-800/50 bg-green-950/30' },
+    connecting:   { dot: 'bg-yellow-400 pulse-dot', text: 'Connecting…', badge: 'border-yellow-800/50 bg-yellow-950/30' },
+    disconnected: { dot: 'bg-slate-500',            text: 'Offline',      badge: 'border-slate-700 bg-slate-800' }
+  };
+  const m = map[state] || map.disconnected;
+  dot.className  = `w-1.5 h-1.5 rounded-full ${m.dot}`;
+  text.textContent = m.text;
+  badge.className = `flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${m.badge}`;
+  text.className  = state === 'connected' ? 'text-green-400' : state === 'connecting' ? 'text-yellow-400' : 'text-slate-400';
+}
+
+// ═══════════════════════════════════════════════
+// NOTIFICATIONS
+// ═══════════════════════════════════════════════
+async function requestNotificationPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    await Notification.requestPermission();
+  }
+}
+
+function triggerNotification(task) {
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.ready.then(sw => {
+    sw.active?.postMessage({
+      type: 'SHOW_NOTIFICATION',
+      title: `${task.source === 'teams' ? '💬' : '📧'} ${task.title}`,
+      body: task.sender ? `From: ${task.sender}` : STATUS_META[task.status].label,
+      tag: task.id
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════
+// RENDERING
+// ═══════════════════════════════════════════════
+function timeAgo(iso) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1)  return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+function buildCard(task, mobile = false) {
+  const meta = STATUS_META[task.status];
+  const src  = SOURCE_META[task.source] || SOURCE_META.manual;
+  const card = document.createElement('div');
+  card.className = `task-card bg-slate-800 border ${meta.border} rounded-xl p-3 space-y-2 fade-in`;
+  card.dataset.id = task.id;
+  if (!mobile) {
+    card.draggable = true;
+    card.addEventListener('dragstart', e => { draggedId = task.id; card.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
+    card.addEventListener('dragend',   () => { draggedId = null; card.classList.remove('dragging'); });
+  }
+
+  card.innerHTML = `
+    <div class="flex items-start justify-between gap-2">
+      <p class="text-sm font-semibold text-white leading-snug flex-1">${escHtml(task.title)}</p>
+      <button class="delete-btn flex-shrink-0 text-slate-600 hover:text-red-400 transition-colors mt-0.5" data-id="${task.id}">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    ${task.sender ? `<p class="text-xs text-slate-400 truncate">${src.icon} ${escHtml(task.sender)}</p>` : ''}
+    <div class="flex items-center justify-between gap-2">
+      <span class="text-xs px-2 py-0.5 rounded-full font-medium ${meta.badge}">${meta.label}</span>
+      <span class="text-xs text-slate-600">${timeAgo(task.createdAt)}</span>
+    </div>
+    ${mobile ? `
+    <select class="status-select w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500 mt-1" data-id="${task.id}">
+      ${STATUSES.map(s => `<option value="${s}" ${s === task.status ? 'selected' : ''}>${STATUS_META[s].label}</option>`).join('')}
+    </select>` : ''}
+  `;
+
+  card.querySelector('.delete-btn').addEventListener('click', e => { e.stopPropagation(); deleteTask(task.id); });
+  if (mobile) {
+    card.querySelector('.status-select').addEventListener('change', e => updateTaskStatus(task.id, e.target.value));
+  }
+  return card;
+}
+
+function renderBoard() {
+  // Update counts
+  STATUSES.forEach(s => {
+    const count = state.tasks.filter(t => t.status === s).length;
+    const el = document.getElementById(`count-${s}`);
+    const tabEl = document.getElementById(`tab-count-${s}`);
+    if (el) el.textContent = count;
+    if (tabEl) tabEl.textContent = count;
+  });
+
+  // Desktop columns
+  STATUSES.forEach(s => {
+    const container = document.getElementById(`tasks-${s}`);
+    if (!container) return;
+    container.innerHTML = '';
+    const tasks = state.tasks.filter(t => t.status === s);
+    if (tasks.length === 0) {
+      container.innerHTML = `<p class="text-xs text-slate-600 text-center py-4">No tasks</p>`;
+    } else {
+      tasks.forEach(t => container.appendChild(buildCard(t, false)));
+    }
+  });
+
+  // Mobile column
+  const mobileCol = document.getElementById('mobile-col');
+  if (mobileCol) {
+    mobileCol.innerHTML = '';
+    const tasks = state.tasks.filter(t => t.status === activeTab);
+    if (tasks.length === 0) {
+      mobileCol.innerHTML = `<div class="text-center py-16 text-slate-600">
+        <svg class="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+        </svg>
+        <p class="text-sm">No ${STATUS_META[activeTab]?.label || ''} tasks</p>
+      </div>`;
+    } else {
+      tasks.forEach(t => mobileCol.appendChild(buildCard(t, true)));
+    }
+  }
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ═══════════════════════════════════════════════
+// DRAG & DROP (desktop)
+// ═══════════════════════════════════════════════
+function initDragDrop() {
+  document.querySelectorAll('.drop-zone').forEach(zone => {
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      if (!draggedId) return;
+      const col = zone.id.replace('col-', '');
+      if (STATUSES.includes(col)) updateTaskStatus(draggedId, col);
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════
+let toastTimer = null;
+function showToast(msg, error = false) {
+  const t = document.getElementById('toast');
+  t.innerHTML = `<span>${error ? '⚠️' : '✓'}</span><span>${msg}</span>`;
+  t.className = `fixed top-20 left-1/2 -translate-x-1/2 z-50 text-sm font-medium px-4 py-2.5 rounded-2xl shadow-lg flex items-center gap-2 transition-opacity ${error ? 'bg-red-900 border border-red-700 text-red-200' : 'bg-slate-700 border border-slate-600 text-white'}`;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.classList.add('opacity-0'); setTimeout(() => t.classList.add('hidden'), 300); }, 2500);
+}
+
+// ═══════════════════════════════════════════════
+// MODAL HELPERS
+// ═══════════════════════════════════════════════
+function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+// ═══════════════════════════════════════════════
+// SETUP SCREEN
+// ═══════════════════════════════════════════════
+function showSetup() {
+  closeModal('app');
+  document.getElementById('setup-screen').classList.remove('hidden');
+  setTimeout(() => document.getElementById('setup-topic').focus(), 100);
+}
+
+function completeSetup() {
+  const topic = document.getElementById('setup-topic').value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
+  const name  = document.getElementById('setup-name').value.trim();
+  if (!topic) { document.getElementById('setup-topic').classList.add('ring-2','ring-red-500'); return; }
+  state.topic = topic;
+  state.name  = name;
+  saveState();
+  launchApp();
+}
+
+function launchApp() {
+  document.getElementById('setup-screen').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('user-label').textContent = state.name ? `Hi, ${state.name}` : `Topic: ${state.topic}`;
+  connectSSE(state.topic);
+  renderBoard();
+  requestNotificationPermission();
+  activateTab('urgent');
+}
+
+// ═══════════════════════════════════════════════
+// TABS (mobile)
+// ═══════════════════════════════════════════════
+function activateTab(col) {
+  activeTab = col;
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    const active = btn.dataset.col === col;
+    btn.className = `tab-btn flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${active ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`;
+  });
+  renderBoard();
+}
+
+// ═══════════════════════════════════════════════
+// EVENT LISTENERS
+// ═══════════════════════════════════════════════
+document.getElementById('setup-btn').addEventListener('click', completeSetup);
+document.getElementById('setup-topic').addEventListener('keydown', e => { if (e.key === 'Enter') completeSetup(); });
+
+document.getElementById('add-btn').addEventListener('click', () => openModal('add-modal'));
+document.getElementById('add-modal-close').addEventListener('click', () => closeModal('add-modal'));
+document.getElementById('add-modal-bg').addEventListener('click', () => closeModal('add-modal'));
+document.getElementById('add-modal-submit').addEventListener('click', () => {
+  const title = document.getElementById('task-title').value.trim();
+  if (!title) { document.getElementById('task-title').classList.add('ring-2','ring-red-500'); return; }
+  addTask(createTask({
+    title,
+    source: document.getElementById('task-source').value,
+    sender: document.getElementById('task-sender').value,
+    status: document.getElementById('task-status').value,
+    body:   document.getElementById('task-body').value
+  }));
+  ['task-title','task-sender','task-body'].forEach(id => document.getElementById(id).value = '');
+  closeModal('add-modal');
+});
+
+document.getElementById('paste-btn').addEventListener('click', () => {
+  parsedPaste = null;
+  document.getElementById('paste-input').value = '';
+  document.getElementById('paste-preview').classList.add('hidden');
+  openModal('paste-modal');
+});
+document.getElementById('paste-modal-close').addEventListener('click', () => closeModal('paste-modal'));
+document.getElementById('paste-modal-bg').addEventListener('click', () => closeModal('paste-modal'));
+
+document.getElementById('paste-detect-btn').addEventListener('click', () => {
+  const raw = document.getElementById('paste-input').value.trim();
+  if (!raw) return;
+  const p = parseEmailText(raw);
+  parsedPaste = p;
+  const meta = STATUS_META[p.status];
+  document.getElementById('preview-title').textContent  = p.subject;
+  document.getElementById('preview-sender').textContent = p.sender || 'Sender not detected';
+  document.getElementById('preview-status').textContent  = meta.label;
+  document.getElementById('preview-status').className = `inline-block text-xs px-2 py-0.5 rounded-full font-medium ${meta.badge}`;
+  document.getElementById('paste-preview').classList.remove('hidden');
+});
+
+document.getElementById('paste-import-btn').addEventListener('click', () => {
+  const raw = document.getElementById('paste-input').value.trim();
+  if (!raw) return;
+  const p = parsedPaste || parseEmailText(raw);
+  addTask(createTask({ title: p.subject, source: 'outlook', sender: p.sender, body: p.body, status: p.status }));
+  closeModal('paste-modal');
+});
+
+document.getElementById('settings-btn').addEventListener('click', () => {
+  document.getElementById('settings-topic').value = state.topic;
+  document.getElementById('settings-name').value  = state.name;
+  openModal('settings-modal');
+});
+document.getElementById('settings-modal-close').addEventListener('click', () => closeModal('settings-modal'));
+document.getElementById('settings-modal-bg').addEventListener('click', () => closeModal('settings-modal'));
+
+document.getElementById('settings-save-btn').addEventListener('click', () => {
+  const topic = document.getElementById('settings-topic').value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
+  const name  = document.getElementById('settings-name').value.trim();
+  if (!topic) return;
+  const topicChanged = topic !== state.topic;
+  state.topic = topic;
+  state.name  = name;
+  saveState();
+  document.getElementById('user-label').textContent = name ? `Hi, ${name}` : `Topic: ${topic}`;
+  if (topicChanged) connectSSE(topic);
+  closeModal('settings-modal');
+  showToast('Settings saved');
+});
+
+document.getElementById('settings-clear-btn').addEventListener('click', () => {
+  if (!confirm('Delete all tasks? This cannot be undone.')) return;
+  state.tasks = [];
+  saveState();
+  renderBoard();
+  closeModal('settings-modal');
+  showToast('All tasks cleared');
+});
+
+document.getElementById('settings-test-btn').addEventListener('click', async () => {
+  if (!state.topic) { showToast('Set a topic first', true); return; }
+  try {
+    await fetch(`https://ntfy.sh/${encodeURIComponent(state.topic)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Test Task from Task Tracker',
+        message: 'From: test@sunway.edu.my | Source: outlook',
+        tags: ['urgent'],
+        priority: 3
+      })
+    });
+    showToast('Test sent! Check your tracker.');
+  } catch(e) {
+    showToast('Test failed — check your internet', true);
+  }
+});
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => activateTab(btn.dataset.col));
+});
+
+// Handle incoming URL param (from bookmarklet)
+function checkURLParams() {
+  const p = new URLSearchParams(window.location.search);
+  if (p.has('title')) {
+    const task = createTask({
+      title:  p.get('title') || 'Untitled',
+      source: p.get('source') || 'outlook',
+      sender: p.get('sender') || '',
+      status: STATUSES.includes(p.get('status')) ? p.get('status') : 'non-urgent',
+      body:   p.get('body') || ''
+    });
+    addTask(task);
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+}
+
+// ═══════════════════════════════════════════════
+// SERVICE WORKER
+// ═══════════════════════════════════════════════
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+loadState();
+initDragDrop();
+
+if (state.topic) {
+  launchApp();
+  checkURLParams();
+} else {
+  showSetup();
+}
+</script>
+</body>
+</html>

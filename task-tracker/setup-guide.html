@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Setup Guide — Task Tracker</title>
+  <meta name="theme-color" content="#0f172a">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white min-h-screen font-sans antialiased">
+<div class="max-w-2xl mx-auto px-4 py-10 space-y-10">
+
+  <!-- Header -->
+  <div class="text-center space-y-2">
+    <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-sky-500/20 border border-sky-500/30 mb-2">
+      <svg class="w-8 h-8 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+      </svg>
+    </div>
+    <h1 class="text-2xl font-bold">Integration Setup Guide</h1>
+    <p class="text-slate-400 text-sm">Connect your Outlook &amp; Teams to the Task Tracker in ~10 minutes.<br>No API keys. No admin access. Just your student M365 account.</p>
+  </div>
+
+  <!-- How it works -->
+  <div class="bg-slate-800/60 border border-slate-700 rounded-2xl p-5 space-y-3">
+    <h2 class="text-sm font-bold text-sky-400 uppercase tracking-wide">How it works</h2>
+    <div class="flex items-start gap-3 text-sm text-slate-300">
+      <span class="flex-shrink-0 w-6 h-6 rounded-full bg-slate-700 text-xs flex items-center justify-center font-bold text-sky-400">1</span>
+      <span>Email or Teams message arrives in your inbox</span>
+    </div>
+    <div class="flex items-start gap-3 text-sm text-slate-300">
+      <span class="flex-shrink-0 w-6 h-6 rounded-full bg-slate-700 text-xs flex items-center justify-center font-bold text-sky-400">2</span>
+      <span><strong class="text-white">Make.com</strong> (free, like a smarter IFTTT) detects it and sends the details to ntfy.sh</span>
+    </div>
+    <div class="flex items-start gap-3 text-sm text-slate-300">
+      <span class="flex-shrink-0 w-6 h-6 rounded-full bg-slate-700 text-xs flex items-center justify-center font-bold text-sky-400">3</span>
+      <span><strong class="text-white">ntfy.sh</strong> (free relay service) delivers it to your Task Tracker in real time</span>
+    </div>
+    <div class="flex items-start gap-3 text-sm text-slate-300">
+      <span class="flex-shrink-0 w-6 h-6 rounded-full bg-slate-700 text-xs flex items-center justify-center font-bold text-sky-400">4</span>
+      <span>Task appears in your tracker automatically, categorised by urgency</span>
+    </div>
+  </div>
+
+  <!-- Part 1: ntfy.sh -->
+  <section class="space-y-4">
+    <div class="flex items-center gap-3">
+      <span class="flex-shrink-0 w-8 h-8 rounded-xl bg-sky-500/20 border border-sky-500/30 flex items-center justify-center text-sm font-bold text-sky-400">A</span>
+      <h2 class="text-lg font-bold">Pick your ntfy.sh topic</h2>
+    </div>
+    <div class="bg-slate-800 border border-slate-700 rounded-xl p-5 space-y-3 text-sm text-slate-300">
+      <p>ntfy.sh is a free push-notification relay. No signup needed — just pick a unique topic name and keep it private.</p>
+      <div class="bg-slate-700/60 rounded-lg p-3 font-mono text-sky-300 text-xs">
+        sunway-<span class="text-yellow-400">yourname</span>-<span class="text-green-400">abc123</span>
+      </div>
+      <p class="text-xs text-slate-500">Use lowercase letters, numbers, and hyphens only. The more unique, the better — anyone who knows the topic name can send to it.</p>
+      <p>Enter this topic name in the Task Tracker settings (⚙ icon in the top-right).</p>
+    </div>
+  </section>
+
+  <!-- Part 2: Make.com account -->
+  <section class="space-y-4">
+    <div class="flex items-center gap-3">
+      <span class="flex-shrink-0 w-8 h-8 rounded-xl bg-sky-500/20 border border-sky-500/30 flex items-center justify-center text-sm font-bold text-sky-400">B</span>
+      <h2 class="text-lg font-bold">Create a free Make.com account</h2>
+    </div>
+    <div class="bg-slate-800 border border-slate-700 rounded-xl p-5 space-y-3 text-sm text-slate-300">
+      <ol class="space-y-2 list-none">
+        <li class="flex gap-2"><span class="text-sky-400 font-bold">1.</span> Go to <code class="bg-slate-700 px-1.5 py-0.5 rounded text-xs">make.com</code> and click <strong class="text-white">Sign up for free</strong></li>
+        <li class="flex gap-2"><span class="text-sky-400 font-bold">2.</span> Sign up with your <strong class="text-white">personal email</strong> (Gmail, etc.) — not your college email, to avoid IT restrictions</li>
+        <li class="flex gap-2"><span class="text-sky-400 font-bold">3.</span> Free plan gives you <strong class="text-white">1,000 operations/month</strong> — enough for ~30 emails per day</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- Part 3: Outlook scenario -->
+  <section class="space-y-4">
+    <div class="flex items-center gap-3">
+      <span class="flex-shrink-0 w-8 h-8 rounded-xl bg-sky-500/20 border border-sky-500/30 flex items-center justify-center text-sm font-bold text-sky-400">C</span>
+      <h2 class="text-lg font-bold">Create Scenario 1 — Outlook Emails</h2>
+    </div>
+    <div class="bg-slate-800 border border-slate-700 rounded-xl divide-y divide-slate-700 text-sm">
+
+      <div class="p-4 space-y-1">
+        <p class="font-semibold text-white">Step 1 — New scenario</p>
+        <p class="text-slate-400">In Make.com dashboard → click <strong class="text-white">Create a new scenario</strong></p>
+      </div>
+
+      <div class="p-4 space-y-2">
+        <p class="font-semibold text-white">Step 2 — Add trigger module</p>
+        <p class="text-slate-400">Click the big <strong class="text-white">+</strong> circle → search for <strong class="text-white">Microsoft 365 Email</strong> → choose <strong class="text-white">Watch Emails</strong></p>
+        <p class="text-slate-400">Connect your college Outlook account when prompted (standard OAuth — only you authorise it)</p>
+        <p class="text-slate-400">Set <strong class="text-white">Folder</strong> to Inbox, <strong class="text-white">Maximum number of results</strong> to 1</p>
+      </div>
+
+      <div class="p-4 space-y-2">
+        <p class="font-semibold text-white">Step 3 — Add urgency router (optional but recommended)</p>
+        <p class="text-slate-400">Add a <strong class="text-white">Router</strong> module → create 4 routes with these filters on the email <strong class="text-white">Subject</strong> field:</p>
+        <div class="bg-slate-700/60 rounded-lg p-3 space-y-1 text-xs font-mono">
+          <p><span class="text-red-400">Route 1:</span> subject contains "urgent" OR "deadline" OR "ASAP" → tag = <span class="text-red-400">urgent</span></p>
+          <p><span class="text-slate-400">Route 2:</span> subject contains "cancelled" OR "cancel" → tag = <span class="text-slate-400">cancelled</span></p>
+          <p><span class="text-blue-400">Route 3:</span> subject contains "rescheduled" OR "moved to" → tag = <span class="text-blue-400">rescheduled</span></p>
+          <p><span class="text-yellow-400">Route 4 (else):</span> (no filter — catch-all) → tag = <span class="text-yellow-400">non-urgent</span></p>
+        </div>
+      </div>
+
+      <div class="p-4 space-y-2">
+        <p class="font-semibold text-white">Step 4 — Add HTTP module</p>
+        <p class="text-slate-400">After each route (or skip the router and use one HTTP module), add an <strong class="text-white">HTTP → Make a request</strong> module:</p>
+        <div class="bg-slate-700/60 rounded-lg p-3 text-xs space-y-1">
+          <p><span class="text-slate-400">URL:</span> <span class="font-mono text-sky-300">https://ntfy.sh/YOUR-TOPIC-HERE</span></p>
+          <p><span class="text-slate-400">Method:</span> <span class="text-white">POST</span></p>
+          <p><span class="text-slate-400">Body type:</span> <span class="text-white">Raw</span></p>
+          <p><span class="text-slate-400">Content type:</span> <span class="text-white">application/json</span></p>
+        </div>
+        <p class="text-slate-400 text-xs">Body (copy-paste this, replace the tag value per route):</p>
+        <div class="bg-slate-900 rounded-lg p-3 text-xs font-mono text-green-300 overflow-x-auto">
+<pre>{
+  "title": "{{1.subject}}",
+  "message": "From: {{1.from.emailAddress.address}} | Source: outlook",
+  "tags": ["non-urgent"],
+  "priority": 3
+}</pre>
+        </div>
+        <p class="text-xs text-slate-500">Replace <code class="bg-slate-700 px-1 rounded">non-urgent</code> with the correct tag for each route: <code class="bg-slate-700 px-1 rounded">urgent</code>, <code class="bg-slate-700 px-1 rounded">cancelled</code>, or <code class="bg-slate-700 px-1 rounded">rescheduled</code>.</p>
+      </div>
+
+      <div class="p-4 space-y-1">
+        <p class="font-semibold text-white">Step 5 — Turn on the scenario</p>
+        <p class="text-slate-400">Toggle the scenario <strong class="text-white">ON</strong> (bottom-left switch). Set scheduling to <strong class="text-white">Immediately</strong> or every 1 minute.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Part 4: Teams scenario -->
+  <section class="space-y-4">
+    <div class="flex items-center gap-3">
+      <span class="flex-shrink-0 w-8 h-8 rounded-xl bg-sky-500/20 border border-sky-500/30 flex items-center justify-center text-sm font-bold text-sky-400">D</span>
+      <h2 class="text-lg font-bold">Create Scenario 2 — Teams Messages</h2>
+    </div>
+    <div class="bg-slate-800 border border-slate-700 rounded-xl divide-y divide-slate-700 text-sm">
+      <div class="p-4 space-y-2">
+        <p class="font-semibold text-white">Same process, different trigger</p>
+        <p class="text-slate-400">Create a new scenario → add <strong class="text-white">Microsoft Teams → Watch Channel Messages</strong> as the trigger</p>
+        <p class="text-slate-400">Select your college's team and the channel (e.g. General or your class channel)</p>
+      </div>
+      <div class="p-4 space-y-2">
+        <p class="font-semibold text-white">HTTP module body for Teams</p>
+        <div class="bg-slate-900 rounded-lg p-3 text-xs font-mono text-green-300 overflow-x-auto">
+<pre>{
+  "title": "{{1.body.content}}",
+  "message": "From: {{1.from.user.displayName}} | Source: teams",
+  "tags": ["non-urgent"],
+  "priority": 3
+}</pre>
+        </div>
+        <p class="text-xs text-slate-500">Apply the same router + urgency tags as the Outlook scenario.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Test -->
+  <section class="space-y-4">
+    <div class="flex items-center gap-3">
+      <span class="flex-shrink-0 w-8 h-8 rounded-xl bg-green-500/20 border border-green-500/30 flex items-center justify-center text-sm font-bold text-green-400">✓</span>
+      <h2 class="text-lg font-bold">Test it</h2>
+    </div>
+    <div class="bg-slate-800 border border-slate-700 rounded-xl p-5 space-y-3 text-sm text-slate-300">
+      <ol class="space-y-2 list-none">
+        <li class="flex gap-2"><span class="text-green-400 font-bold">1.</span> Open your Task Tracker and go to ⚙ Settings → click <strong class="text-white">Send Test Task</strong></li>
+        <li class="flex gap-2"><span class="text-green-400 font-bold">2.</span> A test "Urgent" task should appear in your tracker within 1–2 seconds</li>
+        <li class="flex gap-2"><span class="text-green-400 font-bold">3.</span> Send yourself an email with "urgent" in the subject line and watch it appear automatically</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- Tips -->
+  <section class="bg-yellow-950/30 border border-yellow-900/40 rounded-2xl p-5 space-y-2">
+    <h3 class="text-sm font-bold text-yellow-400">💡 Tips for students</h3>
+    <ul class="text-sm text-slate-300 space-y-1.5 list-none">
+      <li>• Keep your ntfy.sh topic name private — it's your "channel". Anyone who knows it can post to it.</li>
+      <li>• Make.com free tier resets every month. 1,000 operations = about 30 emails/day — more than enough.</li>
+      <li>• Install the Task Tracker on your iPhone: open it in Safari → Share button → <strong class="text-white">Add to Home Screen</strong></li>
+      <li>• The tracker works offline too — your tasks are always saved in your browser.</li>
+      <li>• You can also manually add tasks anytime with the <strong class="text-white">Add Task</strong> button — no automation needed.</li>
+    </ul>
+  </section>
+
+  <!-- Back link -->
+  <div class="text-center">
+    <a href="index.html" class="inline-flex items-center gap-2 text-sky-400 hover:text-sky-300 text-sm font-medium transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+      Back to Task Tracker
+    </a>
+  </div>
+</div>
+</body>
+</html>
