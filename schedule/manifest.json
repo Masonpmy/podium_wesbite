@@ -1,0 +1,21 @@
+{
+  "name": "My Class Schedule",
+  "short_name": "Schedule",
+  "description": "Weekly class timetable",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#3d4a8a",
+  "theme_color": "#3d4a8a",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["education", "productivity"],
+  "lang": "en"
+}
