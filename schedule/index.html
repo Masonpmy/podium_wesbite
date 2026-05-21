@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <title>My Class Schedule</title>
+  <meta name="description" content="Weekly class timetable">
+  <meta name="theme-color" content="#3d4a8a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Schedule">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="icon" href="icon.svg">
+  <style>
+    :root {
+      --bg: #f3f4f8;
+      --card: #ffffff;
+      --ink: #1c2333;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --brand: #3d4a8a;
+      --brand-2: #5b6bb5;
+      --ict: #6aa84f;   --ict-bg: #e3f0db;
+      --phys: #3d85c6;  --phys-bg: #d7e7f6;
+      --math: #d6a800;  --math-bg: #fdf3cf;
+      --chem: #e69138;  --chem-bg: #fbe2cc;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; }
+    html, body { background: var(--bg); color: var(--ink); }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      padding-bottom: calc(env(safe-area-inset-bottom) + 24px);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Header */
+    .top {
+      background: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%);
+      color: #fff;
+      padding: calc(env(safe-area-inset-top) + 18px) 20px 22px;
+      border-radius: 0 0 24px 24px;
+      box-shadow: 0 6px 20px rgba(61,74,138,0.25);
+    }
+    .top h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.2px; }
+    .top .date { font-size: 13px; opacity: 0.85; margin-top: 2px; }
+    .status {
+      margin-top: 16px; background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.22);
+      border-radius: 14px; padding: 12px 14px; backdrop-filter: blur(6px);
+      display: flex; align-items: center; gap: 12px;
+    }
+    .status .dot { width: 10px; height: 10px; border-radius: 50%; background: #8ef0a8; flex: none; box-shadow: 0 0 0 4px rgba(142,240,168,0.25); }
+    .status .dot.idle { background: #ffd27a; box-shadow: 0 0 0 4px rgba(255,210,122,0.25); }
+    .status .txt { font-size: 14px; line-height: 1.35; }
+    .status .txt b { font-weight: 700; }
+
+    /* Day tabs */
+    .tabs { display: flex; gap: 8px; padding: 16px 16px 4px; overflow-x: auto; }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab {
+      flex: 1; min-width: 60px; text-align: center; padding: 10px 6px;
+      background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+      font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer;
+      transition: all 0.15s; user-select: none;
+    }
+    .tab .n { font-size: 16px; font-weight: 700; color: var(--ink); }
+    .tab.active { background: var(--brand); border-color: var(--brand); color: rgba(255,255,255,0.85); }
+    .tab.active .n { color: #fff; }
+    .tab.today::after { content: ""; display: block; width: 5px; height: 5px; border-radius: 50%; background: var(--chem); margin: 4px auto 0; }
+    .tab.active.today::after { background: #fff; }
+
+    /* Class list */
+    .list { padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; }
+    .card {
+      background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+      padding: 14px 16px 14px 18px; position: relative; overflow: hidden;
+      display: flex; align-items: center; gap: 14px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .card .bar { position: absolute; left: 0; top: 0; bottom: 0; width: 6px; }
+    .card .time { flex: none; width: 62px; text-align: center; }
+    .card .time .s { font-size: 15px; font-weight: 700; }
+    .card .time .e { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .card .meta { flex: 1; min-width: 0; }
+    .card .meta .subj { font-size: 16px; font-weight: 700; letter-spacing: -0.2px; }
+    .card .meta .room { font-size: 13px; color: var(--muted); margin-top: 3px; display: inline-flex; align-items: center; gap: 5px; }
+    .pill { font-size: 11px; font-weight: 700; padding: 4px 9px; border-radius: 999px; flex: none; }
+    .card.now { box-shadow: 0 4px 16px rgba(61,74,138,0.18); border-color: transparent; }
+    .card.now .live { font-size: 10px; font-weight: 800; letter-spacing: 0.5px; color: #fff; background: #16a34a; padding: 3px 8px; border-radius: 999px; }
+
+    .ict  .bar { background: var(--ict); }  .ict  .pill { background: var(--ict-bg); color: #3c6e26; }
+    .phys .bar { background: var(--phys); } .phys .pill { background: var(--phys-bg); color: #1f5a8f; }
+    .math .bar { background: var(--math); } .math .pill { background: var(--math-bg); color: #8a6d00; }
+    .chem .bar { background: var(--chem); } .chem .pill { background: var(--chem-bg); color: #9c5a16; }
+
+    .empty { text-align: center; padding: 48px 24px; color: var(--muted); }
+    .empty .big { font-size: 40px; margin-bottom: 10px; }
+    .empty .t { font-size: 15px; font-weight: 600; color: var(--ink); }
+    .empty .s { font-size: 13px; margin-top: 4px; }
+
+    /* View toggle */
+    .seg { display: flex; gap: 6px; margin: 4px 16px 0; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 5px; }
+    .seg button {
+      flex: 1; padding: 9px; border: none; background: transparent; border-radius: 10px;
+      font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; font-family: inherit;
+    }
+    .seg button.on { background: var(--brand); color: #fff; }
+
+    /* Week grid */
+    .grid-wrap { padding: 12px 16px; overflow-x: auto; }
+    table.grid { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; }
+    table.grid th, table.grid td {
+      border: 1px solid var(--line); padding: 6px 8px; font-size: 11px;
+      text-align: center; vertical-align: middle; background: var(--card);
+    }
+    table.grid th { background: #eef0f7; font-weight: 700; color: var(--brand); white-space: nowrap; }
+    table.grid td.day { background: #eef0f7; font-weight: 800; color: var(--ink); position: sticky; left: 0; z-index: 2; }
+    table.grid th.corner { position: sticky; left: 0; z-index: 3; }
+    table.grid td.cls { font-weight: 700; line-height: 1.3; min-width: 120px; }
+    table.grid td.cls .rm { font-weight: 600; opacity: 0.8; display: block; margin-top: 2px; }
+    table.grid td.brk { background: #fbe2cc; font-weight: 800; color: #9c5a16; font-size: 16px; }
+    td.ict  { background: var(--ict-bg)  !important; color: #3c6e26; }
+    td.phys { background: var(--phys-bg) !important; color: #1f5a8f; }
+    td.math { background: var(--math-bg) !important; color: #8a6d00; }
+    td.chem { background: var(--chem-bg) !important; color: #9c5a16; }
+
+    .hide { display: none !important; }
+    .foot { text-align: center; font-size: 11px; color: var(--muted); padding: 20px 16px 0; }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <h1>My Class Schedule</h1>
+    <div class="date" id="dateLine">—</div>
+    <div class="status" id="status">
+      <span class="dot" id="statusDot"></span>
+      <span class="txt" id="statusTxt">Loading…</span>
+    </div>
+  </header>
+
+  <div class="seg">
+    <button id="segDay" class="on" onclick="setView('day')">Day</button>
+    <button id="segWeek" onclick="setView('week')">Week</button>
+  </div>
+
+  <nav class="tabs" id="tabs"></nav>
+
+  <main>
+    <section id="dayView" class="list"></section>
+    <section id="weekView" class="grid-wrap hide"></section>
+  </main>
+
+  <div class="foot">Tap a class' room code to recall where to go · Updates automatically</div>
+
+  <script>
+    const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+    const FULL = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday' };
+
+    const SCHEDULE = {
+      Mon: [],
+      Tue: [
+        { subj: 'ICT Application', room: 'UE-2-14', start: '08:30', end: '10:30', type: 'ict' },
+        { subj: 'Physics 1',       room: 'SW-4-4',  start: '10:30', end: '12:30', type: 'phys' },
+        { subj: 'Chemistry 1',     room: 'UC-7-12', start: '13:00', end: '15:00', type: 'chem' }
+      ],
+      Wed: [
+        { subj: 'Mathematics 1',   room: 'NW-3-22', start: '10:30', end: '12:30', type: 'math' },
+        { subj: 'Physics 1',       room: 'UC-7-11', start: '15:00', end: '17:00', type: 'phys' }
+      ],
+      Thu: [
+        { subj: 'Mathematics 1',   room: 'UC-7-11', start: '10:30', end: '12:30', type: 'math' },
+        { subj: 'Chemistry 1',     room: 'CHEM 4',  start: '13:00', end: '15:00', type: 'chem' }
+      ],
+      Fri: [
+        { subj: 'ICT Application', room: 'NW-3-20', start: '08:30', end: '10:30', type: 'ict' },
+        { subj: 'Chemistry 1',     room: 'UC-7-12', start: '11:30', end: '12:30', type: 'chem' },
+        { subj: 'Physics 1',       room: 'UC-6-10', start: '13:00', end: '14:00', type: 'phys' }
+      ]
+    };
+
+    const COLS = [
+      { s: '08:30', e: '09:30' }, { s: '09:30', e: '10:30' },
+      { s: '10:30', e: '11:30' }, { s: '11:30', e: '12:30' },
+      { s: '12:30', e: '13:00', brk: true },
+      { s: '13:00', e: '14:00' }, { s: '14:00', e: '15:00' },
+      { s: '15:00', e: '16:00' }, { s: '16:00', e: '17:00' }
+    ];
+
+    const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+    const fmt = (t) => { const [h, m] = t.split(':').map(Number); const ap = h < 12 ? 'AM' : 'PM'; const hh = ((h + 11) % 12) + 1; return `${hh}:${String(m).padStart(2, '0')} ${ap}`; };
+
+    let selected = null;
+    let view = 'day';
+
+    function todayKey() {
+      const d = new Date().getDay(); // 0 Sun .. 6 Sat
+      return (d >= 1 && d <= 5) ? DAYS[d - 1] : null;
+    }
+
+    function renderTabs() {
+      const tk = todayKey();
+      document.getElementById('tabs').innerHTML = DAYS.map((d) => {
+        const cls = ['tab'];
+        if (d === selected) cls.push('active');
+        if (d === tk) cls.push('today');
+        const count = SCHEDULE[d].length;
+        return `<div class="${cls.join(' ')}" onclick="selectDay('${d}')">
+          <div class="n">${d}</div>
+          <div>${count ? count + ' cls' : '—'}</div>
+        </div>`;
+      }).join('');
+    }
+
+    function selectDay(d) { selected = d; renderTabs(); renderDay(); }
+
+    function renderDay() {
+      const list = SCHEDULE[selected];
+      const el = document.getElementById('dayView');
+      if (!list.length) {
+        el.innerHTML = `<div class="empty">
+          <div class="big">🎉</div>
+          <div class="t">No classes on ${FULL[selected]}</div>
+          <div class="s">Enjoy the free day.</div>
+        </div>`;
+        return;
+      }
+      const now = new Date();
+      const isToday = selected === todayKey();
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      el.innerHTML = list.map((c) => {
+        const live = isToday && nowMin >= toMin(c.start) && nowMin < toMin(c.end);
+        return `<div class="card ${c.type} ${live ? 'now' : ''}">
+          <span class="bar"></span>
+          <div class="time">
+            <div class="s">${c.start}</div>
+            <div class="e">${c.end}</div>
+          </div>
+          <div class="meta">
+            <div class="subj">${c.subj}</div>
+            <div class="room">📍 ${c.room}</div>
+          </div>
+          ${live ? '<span class="live">NOW</span>' : `<span class="pill">${c.type === 'ict' ? 'ICT' : c.subj.split(' ')[0]}</span>`}
+        </div>`;
+      }).join('');
+    }
+
+    function renderWeek() {
+      let head = '<tr><th class="corner">Day</th>' + COLS.map((c) =>
+        `<th>${c.s}<br>${c.e}</th>`).join('') + '</tr>';
+      let rows = DAYS.map((d) => {
+        let cells = `<td class="day">${d}</td>`;
+        let i = 0;
+        while (i < COLS.length) {
+          const col = COLS[i];
+          if (col.brk) { cells += `<td class="brk" title="Break">休</td>`; i++; continue; }
+          const cls = SCHEDULE[d].find((c) => toMin(c.start) <= toMin(col.s) && toMin(c.end) >= toMin(col.e));
+          if (cls) {
+            let span = 0, j = i;
+            while (j < COLS.length && !COLS[j].brk &&
+                   toMin(cls.start) <= toMin(COLS[j].s) && toMin(cls.end) >= toMin(COLS[j].e)) { span++; j++; }
+            cells += `<td class="cls ${cls.type}" colspan="${span}">${cls.subj}<span class="rm">${cls.room}</span></td>`;
+            i = j;
+          } else { cells += '<td></td>'; i++; }
+        }
+        return `<tr>${cells}</tr>`;
+      }).join('');
+      document.getElementById('weekView').innerHTML = `<table class="grid">${head}${rows}</table>`;
+    }
+
+    function setView(v) {
+      view = v;
+      document.getElementById('segDay').classList.toggle('on', v === 'day');
+      document.getElementById('segWeek').classList.toggle('on', v === 'week');
+      document.getElementById('dayView').classList.toggle('hide', v !== 'day');
+      document.getElementById('tabs').classList.toggle('hide', v !== 'day');
+      document.getElementById('weekView').classList.toggle('hide', v !== 'week');
+      if (v === 'week') renderWeek();
+    }
+
+    function updateStatus() {
+      const now = new Date();
+      document.getElementById('dateLine').textContent =
+        now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+      const tk = todayKey();
+      const dot = document.getElementById('statusDot');
+      const txt = document.getElementById('statusTxt');
+      if (!tk) { dot.classList.add('idle'); txt.innerHTML = '<b>Weekend</b> — no classes today.'; return; }
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      const list = SCHEDULE[tk];
+      const current = list.find((c) => nowMin >= toMin(c.start) && nowMin < toMin(c.end));
+      if (current) {
+        dot.classList.remove('idle');
+        txt.innerHTML = `<b>${current.subj}</b> now · ${current.room} · ends ${fmt(current.end)}`;
+        return;
+      }
+      const next = list.find((c) => toMin(c.start) > nowMin);
+      if (next) {
+        dot.classList.add('idle');
+        const mins = toMin(next.start) - nowMin;
+        const when = mins < 60 ? `in ${mins} min` : `at ${fmt(next.start)}`;
+        txt.innerHTML = `Next: <b>${next.subj}</b> ${when} · ${next.room}`;
+        return;
+      }
+      dot.classList.add('idle');
+      txt.innerHTML = list.length ? '<b>Done for today</b> 🎓' : '<b>No classes today.</b>';
+    }
+
+    function init() {
+      selected = todayKey() || 'Mon';
+      renderTabs();
+      renderDay();
+      updateStatus();
+      setInterval(() => { updateStatus(); if (view === 'day') renderDay(); }, 60000);
+    }
+
+    init();
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    }
+  </script>
+</body>
+</html>
