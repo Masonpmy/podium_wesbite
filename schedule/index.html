@@ -26,6 +26,7 @@
       --phys: #3d85c6;  --phys-bg: #d7e7f6;
       --math: #d6a800;  --math-bg: #fdf3cf;
       --chem: #e69138;  --chem-bg: #fbe2cc;
+      --off: #9aa0ac;
     }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; }
     html, body { background: var(--bg); color: var(--ink); }
@@ -50,11 +51,41 @@
       border: 1px solid rgba(255,255,255,0.22);
       border-radius: 14px; padding: 12px 14px; backdrop-filter: blur(6px);
       display: flex; align-items: center; gap: 12px;
+      transform-origin: center; will-change: transform;
     }
     .status .dot { width: 10px; height: 10px; border-radius: 50%; background: #8ef0a8; flex: none; box-shadow: 0 0 0 4px rgba(142,240,168,0.25); }
     .status .dot.idle { background: #ffd27a; box-shadow: 0 0 0 4px rgba(255,210,122,0.25); }
     .status .txt { font-size: 14px; line-height: 1.35; }
     .status .txt b { font-weight: 700; }
+
+    /* Urgency animations on the status banner */
+    @keyframes breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.03); } }
+    @keyframes glow {
+      0%,100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+      50%     { box-shadow: 0 0 0 7px rgba(255,255,255,0.14); }
+    }
+    @keyframes flashdot {
+      0%,100% { transform: scale(1); opacity: 1; }
+      50%     { transform: scale(1.6); opacity: 0.55; }
+    }
+    .status.live-now {
+      background: rgba(255,255,255,0.26);
+      border-color: rgba(255,255,255,0.5);
+      animation: breathe 1.3s ease-in-out infinite, glow 1.3s ease-in-out infinite;
+    }
+    .status.live-now .dot { animation: flashdot 1.3s ease-in-out infinite; }
+    .status.soon { animation: breathe 2.6s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) {
+      .status.live-now, .status.soon, .status.live-now .dot { animation: none; }
+    }
+
+    /* View switch */
+    .seg { display: flex; gap: 6px; margin: 16px 16px 0; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 5px; }
+    .seg button {
+      flex: 1; padding: 9px; border: none; background: transparent; border-radius: 10px;
+      font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; font-family: inherit;
+    }
+    .seg button.on { background: var(--brand); color: #fff; }
 
     /* Day tabs */
     .tabs { display: flex; gap: 8px; padding: 16px 16px 4px; overflow-x: auto; }
@@ -71,13 +102,13 @@
     .tab.today::after { content: ""; display: block; width: 5px; height: 5px; border-radius: 50%; background: var(--chem); margin: 4px auto 0; }
     .tab.active.today::after { background: #fff; }
 
-    /* Class list */
+    /* Class list / cards */
     .list { padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; }
     .card {
       background: var(--card); border: 1px solid var(--line); border-radius: 16px;
       padding: 14px 16px 14px 18px; position: relative; overflow: hidden;
-      display: flex; align-items: center; gap: 14px;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+      display: flex; align-items: center; gap: 14px; cursor: pointer;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04); transition: filter 0.2s, opacity 0.2s;
     }
     .card .bar { position: absolute; left: 0; top: 0; bottom: 0; width: 6px; }
     .card .time { flex: none; width: 62px; text-align: center; }
@@ -86,6 +117,7 @@
     .card .meta { flex: 1; min-width: 0; }
     .card .meta .subj { font-size: 16px; font-weight: 700; letter-spacing: -0.2px; }
     .card .meta .room { font-size: 13px; color: var(--muted); margin-top: 3px; display: inline-flex; align-items: center; gap: 5px; }
+    .card .meta .cx { font-size: 11px; font-weight: 800; letter-spacing: 0.5px; color: #b91c1c; margin-top: 5px; }
     .pill { font-size: 11px; font-weight: 700; padding: 4px 9px; border-radius: 999px; flex: none; }
     .card.now { box-shadow: 0 4px 16px rgba(61,74,138,0.18); border-color: transparent; }
     .card.now .live { font-size: 10px; font-weight: 800; letter-spacing: 0.5px; color: #fff; background: #16a34a; padding: 3px 8px; border-radius: 999px; }
@@ -95,18 +127,25 @@
     .math .bar { background: var(--math); } .math .pill { background: var(--math-bg); color: #8a6d00; }
     .chem .bar { background: var(--chem); } .chem .pill { background: var(--chem-bg); color: #9c5a16; }
 
-    .empty { text-align: center; padding: 48px 24px; color: var(--muted); }
+    /* Cancelled state: dull gray + 50% opacity */
+    .card.cancelled { filter: grayscale(1); opacity: 0.5; box-shadow: none; }
+    .card.cancelled .bar { background: var(--off) !important; }
+    .card.cancelled .subj { text-decoration: line-through; }
+    .card.cancelled .pill { background: #e5e7eb !important; color: #6b7280 !important; }
+
+    /* Replacement task note (kept readable, full opacity) */
+    .tasknote {
+      margin: -6px 0 0; background: #fff7ed; border: 1px solid #fed7aa;
+      border-radius: 0 0 14px 14px; padding: 10px 14px; font-size: 13px;
+      color: #7c2d12; line-height: 1.4;
+    }
+    .tasknote b { font-weight: 800; }
+    .cardwrap { display: flex; flex-direction: column; }
+
+    .empty { text-align: center; padding: 40px 24px; color: var(--muted); }
     .empty .big { font-size: 40px; margin-bottom: 10px; }
     .empty .t { font-size: 15px; font-weight: 600; color: var(--ink); }
     .empty .s { font-size: 13px; margin-top: 4px; }
-
-    /* View toggle */
-    .seg { display: flex; gap: 6px; margin: 4px 16px 0; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 5px; }
-    .seg button {
-      flex: 1; padding: 9px; border: none; background: transparent; border-radius: 10px;
-      font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; font-family: inherit;
-    }
-    .seg button.on { background: var(--brand); color: #fff; }
 
     /* Week grid */
     .grid-wrap { padding: 12px 16px; overflow-x: auto; }
@@ -126,8 +165,64 @@
     td.math { background: var(--math-bg) !important; color: #8a6d00; }
     td.chem { background: var(--chem-bg) !important; color: #9c5a16; }
 
+    /* Calendar */
+    .cal { padding: 14px 16px 4px; }
+    .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .cal-head .m { font-size: 17px; font-weight: 800; }
+    .cal-head button { width: 38px; height: 38px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font-size: 18px; color: var(--brand); cursor: pointer; }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+    .cal-dow { text-align: center; font-size: 11px; font-weight: 700; color: var(--muted); padding-bottom: 2px; }
+    .cal-cell {
+      aspect-ratio: 1 / 1; border: 1px solid var(--line); border-radius: 10px; background: var(--card);
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+      padding: 5px 2px 3px; font-size: 13px; cursor: default; position: relative;
+    }
+    .cal-cell.blank { background: transparent; border: none; }
+    .cal-cell.wknd .num { color: var(--muted); }
+    .cal-cell.has { cursor: pointer; }
+    .cal-cell.today { border-color: var(--brand); border-width: 2px; }
+    .cal-cell.sel { background: var(--brand); }
+    .cal-cell.sel .num { color: #fff; }
+    .cal-cell .num { font-weight: 700; }
+    .cal-dots { display: flex; gap: 3px; margin-top: auto; flex-wrap: wrap; justify-content: center; max-width: 100%; padding-bottom: 1px; }
+    .cal-dots .d { width: 6px; height: 6px; border-radius: 50%; }
+    .d.ict { background: var(--ict); } .d.phys { background: var(--phys); }
+    .d.math { background: var(--math); } .d.chem { background: var(--chem); }
+    .d.off { background: var(--off); }
+    .cal-cell.sel .cal-dots .d { outline: 1px solid rgba(255,255,255,0.6); }
+    .cal-legend { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; padding: 14px 8px 2px; font-size: 11px; color: var(--muted); }
+    .cal-legend span { display: inline-flex; align-items: center; gap: 5px; }
+    .cal-legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+    .cal-detail { padding: 6px 16px 0; }
+    .cal-detail h3 { font-size: 14px; font-weight: 800; color: var(--brand); margin: 10px 2px; }
+
+    /* Editor modal */
+    .modal { position: fixed; inset: 0; z-index: 100; display: flex; align-items: flex-end; justify-content: center;
+      background: rgba(15,18,30,0.45); backdrop-filter: blur(3px); padding: 0; }
+    .sheet { width: 100%; max-width: 520px; background: var(--card); border-radius: 22px 22px 0 0;
+      padding: 18px 18px calc(env(safe-area-inset-bottom) + 22px); box-shadow: 0 -10px 40px rgba(0,0,0,0.25);
+      animation: rise 0.22s ease; }
+    @keyframes rise { from { transform: translateY(40px); opacity: 0.6; } to { transform: translateY(0); opacity: 1; } }
+    .sheet-h { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+    .sheet-h .mt { font-size: 18px; font-weight: 800; }
+    .sheet-h .ms { font-size: 13px; color: var(--muted); margin-top: 3px; }
+    .sheet-h .x { border: none; background: var(--bg); width: 34px; height: 34px; border-radius: 50%; font-size: 16px; color: var(--muted); cursor: pointer; flex: none; }
+    .row { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; border-top: 1px solid var(--line); font-size: 15px; font-weight: 600; }
+    .sw { position: relative; width: 50px; height: 30px; background: #d1d5db; border-radius: 999px; transition: background 0.2s; flex: none; }
+    .sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+    input#mCancel { display: none; }
+    input#mCancel:checked + .sw { background: #dc2626; }
+    input#mCancel:checked + .sw::after { transform: translateX(20px); }
+    .fld { display: block; padding-top: 14px; border-top: 1px solid var(--line); }
+    .fld span { display: block; font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 8px; }
+    .fld textarea { width: 100%; border: 1px solid var(--line); border-radius: 12px; padding: 12px; font: inherit; font-size: 15px; resize: vertical; background: var(--bg); color: var(--ink); }
+    .acts { display: flex; gap: 10px; margin-top: 18px; }
+    .acts button { flex: 1; padding: 14px; border-radius: 14px; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; border: none; }
+    .acts .ghost { background: var(--bg); color: var(--muted); }
+    .acts .primary { background: var(--brand); color: #fff; }
+
     .hide { display: none !important; }
-    .foot { text-align: center; font-size: 11px; color: var(--muted); padding: 20px 16px 0; }
+    .foot { text-align: center; font-size: 11px; color: var(--muted); padding: 20px 16px 0; line-height: 1.5; }
   </style>
 </head>
 <body>
@@ -143,6 +238,7 @@
   <div class="seg">
     <button id="segDay" class="on" onclick="setView('day')">Day</button>
     <button id="segWeek" onclick="setView('week')">Week</button>
+    <button id="segCal" onclick="setView('calendar')">Calendar</button>
   </div>
 
   <nav class="tabs" id="tabs"></nav>
@@ -150,9 +246,53 @@
   <main>
     <section id="dayView" class="list"></section>
     <section id="weekView" class="grid-wrap hide"></section>
+    <section id="calView" class="hide">
+      <div class="cal">
+        <div class="cal-head">
+          <button onclick="shiftMonth(-1)" aria-label="Previous month">‹</button>
+          <div class="m" id="calMonthLabel"></div>
+          <button onclick="shiftMonth(1)" aria-label="Next month">›</button>
+        </div>
+        <div class="cal-grid" id="calGrid"></div>
+        <div class="cal-legend">
+          <span><i style="background:var(--ict)"></i>ICT</span>
+          <span><i style="background:var(--phys)"></i>Physics</span>
+          <span><i style="background:var(--math)"></i>Maths</span>
+          <span><i style="background:var(--chem)"></i>Chemistry</span>
+          <span><i style="background:var(--off)"></i>Cancelled</span>
+        </div>
+      </div>
+      <div class="cal-detail" id="calDetail"></div>
+    </section>
   </main>
 
-  <div class="foot">Tap a class' room code to recall where to go · Updates automatically</div>
+  <div class="foot">Tap any class to mark it <b>cancelled</b> or add a <b>replacement task</b>.<br>Changes are saved on this device. Updates automatically.</div>
+
+  <!-- Editor modal -->
+  <div id="modal" class="modal hide">
+    <div class="sheet">
+      <div class="sheet-h">
+        <div>
+          <div class="mt" id="mTitle"></div>
+          <div class="ms" id="mSub"></div>
+        </div>
+        <button class="x" onclick="closeEditor()" aria-label="Close">✕</button>
+      </div>
+      <label class="row" for="mCancel">
+        <span>Class cancelled</span>
+        <input type="checkbox" id="mCancel">
+        <span class="sw"></span>
+      </label>
+      <label class="fld">
+        <span>Replacement task / homework</span>
+        <textarea id="mTask" rows="3" placeholder="e.g. Read Chapter 4 and do exercises 1–10"></textarea>
+      </label>
+      <div class="acts">
+        <button class="ghost" onclick="clearEditor()">Clear</button>
+        <button class="primary" onclick="saveEditor()">Save</button>
+      </div>
+    </div>
+  </div>
 
   <script>
     const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
@@ -188,17 +328,71 @@
       { s: '15:00', e: '16:00' }, { s: '16:00', e: '17:00' }
     ];
 
+    /* ---------- helpers ---------- */
     const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
     const fmt = (t) => { const [h, m] = t.split(':').map(Number); const ap = h < 12 ? 'AM' : 'PM'; const hh = ((h + 11) % 12) + 1; return `${hh}:${String(m).padStart(2, '0')} ${ap}`; };
+    const pad = (n) => String(n).padStart(2, '0');
+    const dateKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const dayKeyOf = (d) => { const x = d.getDay(); return (x >= 1 && x <= 5) ? DAYS[x - 1] : null; };
+    const isSameDate = (a, b) => dateKey(a) === dateKey(b);
+    const isToday = (d) => isSameDate(d, new Date());
+    const tag = (c) => c.type === 'ict' ? 'ICT' : c.subj.split(' ')[0];
+    const escHtml = (s) => String(s).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+
+    function nextDateFor(dayKey) {
+      const targetDow = DAYS.indexOf(dayKey) + 1; // Mon=1 .. Fri=5
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const diff = (targetDow - today.getDay() + 7) % 7;
+      const d = new Date(today); d.setDate(today.getDate() + diff);
+      return d;
+    }
+
+    /* ---------- overrides (cancel / replacement task) ---------- */
+    const OV_KEY = 'schedule.overrides.v1';
+    let overrides = {};
+    try { overrides = JSON.parse(localStorage.getItem(OV_KEY)) || {}; } catch (e) { overrides = {}; }
+    const ovKey = (d, c) => `${dateKey(d)}|${c.subj}|${c.start}`;
+    const getOv = (d, c) => overrides[ovKey(d, c)] || null;
+    function setOv(d, c, val) {
+      const k = ovKey(d, c);
+      if (!val || (!val.cancelled && !(val.task && val.task.trim()))) delete overrides[k];
+      else overrides[k] = { cancelled: !!val.cancelled, task: (val.task || '').trim() };
+      localStorage.setItem(OV_KEY, JSON.stringify(overrides));
+    }
 
     let selected = null;
     let view = 'day';
 
     function todayKey() {
-      const d = new Date().getDay(); // 0 Sun .. 6 Sat
+      const d = new Date().getDay();
       return (d >= 1 && d <= 5) ? DAYS[d - 1] : null;
     }
 
+    /* ---------- shared card ---------- */
+    function classCard(c, dateObj, live) {
+      const ov = getOv(dateObj, c);
+      const cancelled = ov && ov.cancelled;
+      const task = ov && ov.task;
+      const isLive = live && !cancelled;
+      const right = cancelled ? '' : (isLive
+        ? '<span class="live">NOW</span>'
+        : `<span class="pill">${tag(c)}</span>`);
+      const card = `<div class="card ${c.type} ${cancelled ? 'cancelled' : ''} ${isLive ? 'now' : ''}"
+            onclick="openEditor('${dateKey(dateObj)}','${c.subj}','${c.start}')">
+        <span class="bar"></span>
+        <div class="time"><div class="s">${c.start}</div><div class="e">${c.end}</div></div>
+        <div class="meta">
+          <div class="subj">${c.subj}</div>
+          <div class="room">📍 ${c.room}</div>
+          ${cancelled ? '<div class="cx">CANCELLED</div>' : ''}
+        </div>
+        ${right}
+      </div>`;
+      const note = task ? `<div class="tasknote">📝 <b>Replacement task:</b> ${escHtml(task)}</div>` : '';
+      return `<div class="cardwrap">${card}${note}</div>`;
+    }
+
+    /* ---------- Day view ---------- */
     function renderTabs() {
       const tk = todayKey();
       document.getElementById('tabs').innerHTML = DAYS.map((d) => {
@@ -226,29 +420,18 @@
         </div>`;
         return;
       }
-      const now = new Date();
-      const isToday = selected === todayKey();
-      const nowMin = now.getHours() * 60 + now.getMinutes();
+      const dateObj = nextDateFor(selected);
+      const today = isToday(dateObj);
+      const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
       el.innerHTML = list.map((c) => {
-        const live = isToday && nowMin >= toMin(c.start) && nowMin < toMin(c.end);
-        return `<div class="card ${c.type} ${live ? 'now' : ''}">
-          <span class="bar"></span>
-          <div class="time">
-            <div class="s">${c.start}</div>
-            <div class="e">${c.end}</div>
-          </div>
-          <div class="meta">
-            <div class="subj">${c.subj}</div>
-            <div class="room">📍 ${c.room}</div>
-          </div>
-          ${live ? '<span class="live">NOW</span>' : `<span class="pill">${c.type === 'ict' ? 'ICT' : c.subj.split(' ')[0]}</span>`}
-        </div>`;
+        const live = today && nowMin >= toMin(c.start) && nowMin < toMin(c.end);
+        return classCard(c, dateObj, live);
       }).join('');
     }
 
+    /* ---------- Week view (recurring template) ---------- */
     function renderWeek() {
-      let head = '<tr><th class="corner">Day</th>' + COLS.map((c) =>
-        `<th>${c.s}<br>${c.e}</th>`).join('') + '</tr>';
+      let head = '<tr><th class="corner">Day</th>' + COLS.map((c) => `<th>${c.s}<br>${c.e}</th>`).join('') + '</tr>';
       let rows = DAYS.map((d) => {
         let cells = `<td class="day">${d}</td>`;
         let i = 0;
@@ -269,42 +452,164 @@
       document.getElementById('weekView').innerHTML = `<table class="grid">${head}${rows}</table>`;
     }
 
-    function setView(v) {
-      view = v;
-      document.getElementById('segDay').classList.toggle('on', v === 'day');
-      document.getElementById('segWeek').classList.toggle('on', v === 'week');
-      document.getElementById('dayView').classList.toggle('hide', v !== 'day');
-      document.getElementById('tabs').classList.toggle('hide', v !== 'day');
-      document.getElementById('weekView').classList.toggle('hide', v !== 'week');
-      if (v === 'week') renderWeek();
+    /* ---------- Calendar view ---------- */
+    let calMonth = new Date(); calMonth.setDate(1); calMonth.setHours(0, 0, 0, 0);
+    let calSelected = null;
+
+    function shiftMonth(n) {
+      calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + n, 1);
+      calSelected = null;
+      renderCalendar();
     }
 
+    function renderCalendar() {
+      const year = calMonth.getFullYear(), month = calMonth.getMonth();
+      document.getElementById('calMonthLabel').textContent =
+        calMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+
+      const dow = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+      let html = dow.map((d) => `<div class="cal-dow">${d}</div>`).join('');
+      const startDow = new Date(year, month, 1).getDay();
+      const days = new Date(year, month + 1, 0).getDate();
+      for (let i = 0; i < startDow; i++) html += '<div class="cal-cell blank"></div>';
+
+      const todaySel = !calSelected && new Date().getMonth() === month && new Date().getFullYear() === year;
+      if (todaySel) calSelected = new Date(year, month, new Date().getDate());
+
+      for (let day = 1; day <= days; day++) {
+        const d = new Date(year, month, day);
+        const dk = dayKeyOf(d);
+        const list = dk ? SCHEDULE[dk] : [];
+        const dots = list.map((c) => {
+          const ov = getOv(d, c);
+          return `<span class="d ${ov && ov.cancelled ? 'off' : c.type}"></span>`;
+        }).join('');
+        const cls = ['cal-cell'];
+        if (!dk) cls.push('wknd');
+        if (list.length) cls.push('has');
+        if (isToday(d)) cls.push('today');
+        if (calSelected && isSameDate(d, calSelected)) cls.push('sel');
+        const click = list.length ? `onclick="selectCalDay('${dateKey(d)}')"` : '';
+        html += `<div class="${cls.join(' ')}" ${click}>
+          <span class="num">${day}</span>
+          <span class="cal-dots">${dots}</span>
+        </div>`;
+      }
+      document.getElementById('calGrid').innerHTML = html;
+      renderCalDetail();
+    }
+
+    function selectCalDay(dk) {
+      const [y, m, dd] = dk.split('-').map(Number);
+      calSelected = new Date(y, m - 1, dd);
+      renderCalendar();
+    }
+
+    function renderCalDetail() {
+      const el = document.getElementById('calDetail');
+      if (!calSelected) { el.innerHTML = '<div class="empty"><div class="s">Tap a day to see its classes.</div></div>'; return; }
+      const dk = dayKeyOf(calSelected);
+      const list = dk ? SCHEDULE[dk] : [];
+      const heading = calSelected.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+      if (!list.length) {
+        el.innerHTML = `<h3>${heading}</h3><div class="empty"><div class="big">🎉</div><div class="t">No classes</div></div>`;
+        return;
+      }
+      const today = isToday(calSelected);
+      const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+      el.innerHTML = `<h3>${heading}</h3>` + list.map((c) => {
+        const live = today && nowMin >= toMin(c.start) && nowMin < toMin(c.end);
+        return classCard(c, calSelected, live);
+      }).join('');
+    }
+
+    /* ---------- Editor ---------- */
+    let editing = null;
+    function openEditor(dk, subj, start) {
+      const [y, m, dd] = dk.split('-').map(Number);
+      const d = new Date(y, m - 1, dd);
+      const c = (SCHEDULE[dayKeyOf(d)] || []).find((x) => x.subj === subj && x.start === start);
+      if (!c) return;
+      editing = { d, c };
+      const ov = getOv(d, c) || {};
+      document.getElementById('mTitle').textContent = c.subj;
+      document.getElementById('mSub').textContent =
+        `${d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })} · ${c.start}–${c.end} · ${c.room}`;
+      document.getElementById('mCancel').checked = !!ov.cancelled;
+      document.getElementById('mTask').value = ov.task || '';
+      document.getElementById('modal').classList.remove('hide');
+    }
+    function closeEditor() { document.getElementById('modal').classList.add('hide'); editing = null; }
+    function saveEditor() {
+      if (!editing) return;
+      setOv(editing.d, editing.c, {
+        cancelled: document.getElementById('mCancel').checked,
+        task: document.getElementById('mTask').value
+      });
+      closeEditor(); rerender();
+    }
+    function clearEditor() {
+      if (!editing) return;
+      setOv(editing.d, editing.c, null);
+      closeEditor(); rerender();
+    }
+    document.getElementById('modal').addEventListener('click', (e) => {
+      if (e.target.id === 'modal') closeEditor();
+    });
+
+    /* ---------- status banner ---------- */
     function updateStatus() {
       const now = new Date();
       document.getElementById('dateLine').textContent =
         now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
       const tk = todayKey();
+      const box = document.getElementById('status');
       const dot = document.getElementById('statusDot');
       const txt = document.getElementById('statusTxt');
+      box.classList.remove('live-now', 'soon');
       if (!tk) { dot.classList.add('idle'); txt.innerHTML = '<b>Weekend</b> — no classes today.'; return; }
+
       const nowMin = now.getHours() * 60 + now.getMinutes();
-      const list = SCHEDULE[tk];
+      const list = SCHEDULE[tk].filter((c) => { const ov = getOv(now, c); return !(ov && ov.cancelled); });
+
       const current = list.find((c) => nowMin >= toMin(c.start) && nowMin < toMin(c.end));
       if (current) {
         dot.classList.remove('idle');
+        box.classList.add('live-now');
         txt.innerHTML = `<b>${current.subj}</b> now · ${current.room} · ends ${fmt(current.end)}`;
         return;
       }
       const next = list.find((c) => toMin(c.start) > nowMin);
       if (next) {
         dot.classList.add('idle');
+        box.classList.add('soon');
         const mins = toMin(next.start) - nowMin;
         const when = mins < 60 ? `in ${mins} min` : `at ${fmt(next.start)}`;
         txt.innerHTML = `Next: <b>${next.subj}</b> ${when} · ${next.room}`;
         return;
       }
       dot.classList.add('idle');
-      txt.innerHTML = list.length ? '<b>Done for today</b> 🎓' : '<b>No classes today.</b>';
+      txt.innerHTML = SCHEDULE[tk].length ? '<b>Done for today</b> 🎓' : '<b>No classes today.</b>';
+    }
+
+    /* ---------- view switching ---------- */
+    function setView(v) {
+      view = v;
+      document.getElementById('segDay').classList.toggle('on', v === 'day');
+      document.getElementById('segWeek').classList.toggle('on', v === 'week');
+      document.getElementById('segCal').classList.toggle('on', v === 'calendar');
+      document.getElementById('tabs').classList.toggle('hide', v !== 'day');
+      document.getElementById('dayView').classList.toggle('hide', v !== 'day');
+      document.getElementById('weekView').classList.toggle('hide', v !== 'week');
+      document.getElementById('calView').classList.toggle('hide', v !== 'calendar');
+      if (v === 'week') renderWeek();
+      if (v === 'calendar') renderCalendar();
+    }
+
+    function rerender() {
+      updateStatus();
+      if (view === 'day') renderDay();
+      else if (view === 'calendar') renderCalendar();
     }
 
     function init() {
@@ -312,7 +617,7 @@
       renderTabs();
       renderDay();
       updateStatus();
-      setInterval(() => { updateStatus(); if (view === 'day') renderDay(); }, 60000);
+      setInterval(rerender, 60000);
     }
 
     init();
