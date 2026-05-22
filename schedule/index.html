@@ -71,10 +71,10 @@
     .status.live-now {
       background: rgba(255,255,255,0.26);
       border-color: rgba(255,255,255,0.5);
-      animation: breathe 1.3s ease-in-out infinite, glow 1.3s ease-in-out infinite;
+      animation: breathe 0.4s ease-in-out infinite, glow 0.4s ease-in-out infinite;
     }
-    .status.live-now .dot { animation: flashdot 1.3s ease-in-out infinite; }
-    .status.soon { animation: breathe 2.6s ease-in-out infinite; }
+    .status.live-now .dot { animation: flashdot 0.4s ease-in-out infinite; }
+    .status.soon { animation: breathe 1.2s ease-in-out infinite; }
     @media (prefers-reduced-motion: reduce) {
       .status.live-now, .status.soon, .status.live-now .dot { animation: none; }
     }
@@ -582,8 +582,8 @@
       const next = list.find((c) => toMin(c.start) > nowMin);
       if (next) {
         dot.classList.add('idle');
-        box.classList.add('soon');
         const mins = toMin(next.start) - nowMin;
+        if (mins <= 30) box.classList.add('soon');
         const when = mins < 60 ? `in ${mins} min` : `at ${fmt(next.start)}`;
         txt.innerHTML = `Next: <b>${next.subj}</b> ${when} · ${next.room}`;
         return;
