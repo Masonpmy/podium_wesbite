@@ -168,32 +168,62 @@ function smoothExpr(current,target,alpha=0.1){
   return{expression:target.expression,intensity:target.intensity*alpha};
 }
 
-// ─── Audio Hook ───────────────────────────────────────────────────────────────
+// ─── Audio Hook (fixed speech-rate VAD) ──────────────────────────────────────
+// Key fix: onsets only fire on silence→speech transitions, not every frame.
+// Hysteresis + voice-band check reject background noise.
+const SPEECH_ENTER=0.038,SPEECH_EXIT=0.016,MIN_GAP=120,MIN_DUR=55;
+const VB={min:85,max:3200},VB_RATIO=0.30;
 const{useState,useEffect,useRef,useCallback,useMemo}=React;
 function useAudioAnalyzer(enabled){
   const[metrics,setMetrics]=useState({volume:0,speechRate:0,pitch:0,tonality:0,pauseDuration:0,isSpeaking:false,malaysianScore:{tooSoft:0,fillerRhythm:0,tooFast:0,monotone:0,longPause:0,overall:0}});
   const[error,setError]=useState(null);const[active,setActive]=useState(false);
-  const refs=useRef({ctx:null,analyser:null,stream:null,raf:null,h:{volumes:[],speechOnsets:[],silenceStart:null,pitchHistory:[],pauseHistory:[]}});
-  const stop=useCallback(()=>{const r=refs.current;if(r.raf)cancelAnimationFrame(r.raf);if(r.stream)r.stream.getTracks().forEach(t=>t.stop());if(r.ctx)r.ctx.close();r.ctx=r.analyser=r.stream=null;setActive(false);setMetrics(p=>({...p,volume:0,isSpeaking:false}));},[]);
-  useEffect(()=>{if(!enabled){stop();return;}(async()=>{try{const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});const audioCtx=new(window.AudioContext||window.webkitAudioContext)();const analyser=audioCtx.createAnalyser();analyser.fftSize=2048;analyser.smoothingTimeConstant=0.8;audioCtx.createMediaStreamSource(stream).connect(analyser);refs.current.ctx=audioCtx;refs.current.analyser=analyser;refs.current.stream=stream;setActive(true);setError(null);}catch(e){setError(e.message||'Mic denied');}})();return stop;},[enabled,stop]);
-  useEffect(()=>{if(!active||!refs.current.analyser)return;const analyser=refs.current.analyser,h=refs.current.h;const tdBuf=new Float32Array(analyser.fftSize);let lastT=performance.now();const WINDOW=3000;
-    function analyze(){refs.current.raf=requestAnimationFrame(analyze);const now=performance.now();if(now-lastT<16)return;lastT=now;analyser.getFloatTimeDomainData(tdBuf);let sum=0;for(const v of tdBuf)sum+=v*v;const rms=Math.sqrt(sum/tdBuf.length),vol=Math.min(1,rms*8),speaking=rms>0.015;
-      if(!speaking){if(!h.silenceStart)h.silenceStart=now;}else{if(h.silenceStart){h.pauseHistory.push({time:now,d:now-h.silenceStart});h.silenceStart=null;}h.speechOnsets.push(now);}
-      let pitch=0;if(speaking){const SR=refs.current.ctx?.sampleRate||44100,SIZE=tdBuf.length,MAX=Math.floor(SIZE/2);let best=0,bestP=-1;for(let o=80;o<MAX;o++){let c=0;for(let i=0;i<MAX;i++)c+=tdBuf[i]*tdBuf[i+o];if(c>best){best=c;bestP=o;}}if(bestP>0&&best>0.01)pitch=SR/bestP;}
-      if(pitch>0)h.pitchHistory.push({time:now,pitch});
-      const cut=now-WINDOW;h.pitchHistory=h.pitchHistory.filter(p=>p.time>cut);h.pauseHistory=h.pauseHistory.filter(p=>p.time>cut);h.speechOnsets=h.speechOnsets.filter(t=>t>cut);h.volumes=h.volumes||[];h.volumes.push({time:now,v:vol});h.volumes=h.volumes.filter(v=>v.time>cut);
-      const speechRate=h.speechOnsets.length>2?(h.speechOnsets.length/(WINDOW/1000))*0.18:0;
-      const avgPitch=h.pitchHistory.length>0?h.pitchHistory.reduce((a,b)=>a+b.pitch,0)/h.pitchHistory.length:0;
-      let pitchVar=0;if(h.pitchHistory.length>4){const m=avgPitch;pitchVar=Math.sqrt(h.pitchHistory.reduce((a,b)=>a+Math.pow(b.pitch-m,2),0)/h.pitchHistory.length);}
-      const tonality=Math.min(1,pitchVar/80),pause=h.silenceStart?Math.min(1,(now-h.silenceStart)/4000):0;
-      const avgVol=h.volumes.reduce((a,b)=>a+b.v,0)/Math.max(1,h.volumes.length);
+  const refs=useRef({ctx:null,analyser:null,stream:null,raf:null});
+  const st=useRef({speaking:false,speechStart:null,lastOnset:-Infinity,pendingOnset:null,volumes:[],pitchHistory:[],pauseHistory:[],speechOnsets:[],silenceStart:null});
+  const stop=useCallback(()=>{const r=refs.current;if(r.raf)cancelAnimationFrame(r.raf);if(r.stream)r.stream.getTracks().forEach(t=>t.stop());if(r.ctx)r.ctx.close();r.ctx=r.analyser=r.stream=null;setActive(false);setMetrics(p=>({...p,volume:0,isSpeaking:false,speechRate:0}));},[]);
+  useEffect(()=>{if(!enabled){stop();return;}(async()=>{try{const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});const audioCtx=new(window.AudioContext||window.webkitAudioContext)();const analyser=audioCtx.createAnalyser();analyser.fftSize=2048;analyser.smoothingTimeConstant=0.5;audioCtx.createMediaStreamSource(stream).connect(analyser);refs.current.ctx=audioCtx;refs.current.analyser=analyser;refs.current.stream=stream;setActive(true);setError(null);}catch(e){setError(e.message||'Mic denied');}})();return stop;},[enabled,stop]);
+  useEffect(()=>{if(!active||!refs.current.analyser)return;
+    const analyser=refs.current.analyser,fftSize=analyser.fftSize,binCount=analyser.frequencyBinCount;
+    const tdBuf=new Float32Array(fftSize),fBuf=new Float32Array(binCount);
+    const s=st.current;let lastT=performance.now();const WINDOW=4000;
+    function analyze(){refs.current.raf=requestAnimationFrame(analyze);const now=performance.now();if(now-lastT<16)return;lastT=now;
+      analyser.getFloatTimeDomainData(tdBuf);analyser.getFloatFrequencyData(fBuf);
+      // RMS
+      let sum=0;for(const v of tdBuf)sum+=v*v;const rms=Math.sqrt(sum/fftSize),vol=Math.min(1,rms*7);
+      // Voice-band check (FFT power ratio)
+      const SR=refs.current.ctx?.sampleRate||44100,hpb=SR/fftSize;
+      const vMin=Math.floor(VB.min/hpb),vMax=Math.ceil(VB.max/hpb);
+      let tot=0,vp=0;for(let i=1;i<binCount;i++){const pw=Math.pow(10,fBuf[i]/10);tot+=pw;if(i>=vMin&&i<=vMax)vp+=pw;}
+      const isVoice=tot>0&&(vp/tot)>=VB_RATIO;
+      // Hysteresis VAD
+      const prev=s.speaking;
+      if(!s.speaking&&rms>SPEECH_ENTER&&isVoice){s.speaking=true;s.speechStart=now;}
+      else if(s.speaking&&rms<SPEECH_EXIT){s.speaking=false;s.speechStart=null;}
+      const speaking=s.speaking;
+      // Onset detection (transition only, with sustain + gap checks)
+      if(!prev&&speaking)s.pendingOnset=now;
+      if(s.pendingOnset&&speaking&&(now-s.pendingOnset)>=MIN_DUR){if((s.pendingOnset-s.lastOnset)>=MIN_GAP){s.speechOnsets.push(s.pendingOnset);s.lastOnset=s.pendingOnset;}s.pendingOnset=null;}
+      if(!speaking)s.pendingOnset=null;
+      // Pause tracking
+      if(!speaking){if(!s.silenceStart)s.silenceStart=now;}else{if(s.silenceStart){s.pauseHistory.push({time:now,d:now-s.silenceStart});s.silenceStart=null;}}
+      // Pitch
+      let pitch=0;if(speaking&&isVoice){const MAX=Math.floor(fftSize/2);let best=0,bestP=-1;for(let o=80;o<MAX;o++){let c=0;for(let i=0;i<MAX;i++)c+=tdBuf[i]*tdBuf[i+o];if(c>best){best=c;bestP=o;}}if(bestP>0&&best>0.015)pitch=SR/bestP;}
+      if(pitch>0)s.pitchHistory.push({time:now,pitch});
+      // Prune
+      const cut=now-WINDOW;s.pitchHistory=s.pitchHistory.filter(p=>p.time>cut);s.pauseHistory=s.pauseHistory.filter(p=>p.time>cut);s.speechOnsets=s.speechOnsets.filter(t=>t>cut);s.volumes=s.volumes||[];s.volumes.push({time:now,v:vol});s.volumes=s.volumes.filter(v=>v.time>cut);
+      // Metrics
+      const onsetRate=s.speechOnsets.length/(WINDOW/1000);
+      const speechRate=Math.min(1,onsetRate*0.18);
+      const avgPitch=s.pitchHistory.length>0?s.pitchHistory.reduce((a,b)=>a+b.pitch,0)/s.pitchHistory.length:0;
+      let pitchVar=0;if(s.pitchHistory.length>4){const m=avgPitch;pitchVar=Math.sqrt(s.pitchHistory.reduce((a,b)=>a+Math.pow(b.pitch-m,2),0)/s.pitchHistory.length);}
+      const tonality=Math.min(1,pitchVar/80),pause=s.silenceStart?Math.min(1,(now-s.silenceStart)/4000):0;
+      const avgVol=s.volumes.reduce((a,b)=>a+b.v,0)/Math.max(1,s.volumes.length);
       const tooSoft=avgVol<0.25&&speaking?Math.min(1,(0.25-avgVol)*5):0,tooFast=speechRate>0.75?Math.min(1,(speechRate-0.75)*3):0;
       const monotone=speaking?Math.max(0,1-tonality*2.5):0,longPause=pause>0.6?(pause-0.6)*2.5:0;
-      const ro=h.speechOnsets.filter(t=>t>now-2000);let fillerRhythm=0;
+      const ro=s.speechOnsets.filter(t=>t>now-2000);let fillerRhythm=0;
       for(let i=1;i<ro.length-1;i++){const g1=ro[i]-ro[i-1],g2=ro[i+1]-ro[i];if(g1>80&&g1<350&&g2>80&&g2<350)fillerRhythm+=0.25;}
       fillerRhythm=Math.min(1,fillerRhythm);
       const overall=Math.min(1,tooSoft*0.25+tooFast*0.2+monotone*0.25+longPause*0.2+fillerRhythm*0.1);
-      setMetrics({volume:vol,speechRate:Math.min(1,speechRate),pitch:Math.min(1,avgPitch/300),tonality,pauseDuration:pause,isSpeaking:speaking,malaysianScore:{tooSoft,fillerRhythm,tooFast,monotone,longPause,overall}});
+      setMetrics({volume:vol,speechRate,pitch:Math.min(1,avgPitch/300),tonality,pauseDuration:pause,isSpeaking:speaking,malaysianScore:{tooSoft,fillerRhythm,tooFast,monotone,longPause,overall}});
     }
     refs.current.raf=requestAnimationFrame(analyze);
     return()=>{if(refs.current.raf)cancelAnimationFrame(refs.current.raf);};
