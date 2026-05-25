@@ -9,46 +9,87 @@
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <style>
-  body { margin: 0; background: #0a1120; color: #f1f5f9; font-family: system-ui, sans-serif; }
-  #root { width: 100%; min-height: 100vh; }
-  .slider-thumb { -webkit-appearance: none; appearance: none; width: 100%; height: 4px; border-radius: 2px; background: #334155; outline: none; cursor: pointer; }
-  .slider-thumb::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #6366f1; cursor: pointer; border: 2px solid #a5b4fc; }
-  .slider-thumb::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #6366f1; cursor: pointer; border: 2px solid #a5b4fc; }
+  body{margin:0;background:#0a1120;color:#f1f5f9;font-family:system-ui,sans-serif;}
+  #root{width:100%;min-height:100vh;}
+  .slider-thumb{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;background:#334155;outline:none;cursor:pointer;}
+  .slider-thumb::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#6366f1;cursor:pointer;border:2px solid #a5b4fc;}
+  .slider-thumb::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#6366f1;cursor:pointer;border:2px solid #a5b4fc;}
 </style>
 </head>
 <body>
 <div id="root"></div>
-
 <script type="text/babel">
-// ─── Face Generator ───────────────────────────────────────────────────────────
-const ETHNICITY_PROFILES = {
-  malay:   { skinRange:[{h:25,s:55,l:52},{h:28,s:60,l:48}], eyeType:['almond','almond','double'],   noseWidth:[0.48,0.56], lipFullness:[0.52,0.62], jawWidth:[0.72,0.82], hairColors:['#1a0a00','#0d0500','#1e1208'] },
-  chinese: { skinRange:[{h:22,s:45,l:62},{h:25,s:50,l:68}], eyeType:['monolid','monolid','almond'], noseWidth:[0.40,0.48], lipFullness:[0.42,0.52], jawWidth:[0.68,0.76], hairColors:['#0a0500','#1a1000','#2a1800'] },
-  indian:  { skinRange:[{h:20,s:60,l:38},{h:24,s:65,l:45}], eyeType:['double','almond','double'],   noseWidth:[0.50,0.60], lipFullness:[0.58,0.70], jawWidth:[0.74,0.84], hairColors:['#0d0500','#050200','#180c05'] },
+// ─── Vinh Giang Benchmarks ───────────────────────────────────────────────────
+const VINH_TARGETS={
+  volume:     {min:0.42,ideal:0.58,max:0.78},
+  speechRate: {min:0.28,ideal:0.40,max:0.55},
+  pitch:      {min:0.28,ideal:0.45,max:0.70},
+  tonality:   {min:0.40,ideal:0.62,max:1.00},
+  pause:      {min:0.00,ideal:0.18,max:0.38},
 };
-
-function lerp(a,b,t){return a+(b-a)*t;}
-
-function hslToRgb(h,s,l){
-  s/=100;l/=100;
-  const k=n=>(n+h/30)%12, a=s*Math.min(l,1-l), f=n=>l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1)));
-  return [Math.round(f(0)*255),Math.round(f(8)*255),Math.round(f(4)*255)];
+const VINH_FOUNDATIONS=[
+  {key:'volume',    name:'Volume',       icon:'📢', vinh:'Target 6–7/10. Project like you believe it.'},
+  {key:'speechRate',name:'Rate',         icon:'⏱',  vinh:'130–145 WPM. Slow to 90 for key points.'},
+  {key:'pitch',     name:'Pitch',        icon:'🎵', vinh:'Use all the keys — siren glide daily.'},
+  {key:'tonality',  name:'Tonality',     icon:'❤️', vinh:'Emotion lives beneath the words. Smile while you speak.'},
+  {key:'pause',     name:'The Pause',    icon:'🤫', vinh:'1–3s silence beats any filler word.'},
+];
+function distScore(v,t){
+  if(v>=t.min&&v<=t.max)return Math.abs(v-t.ideal)/Math.max(t.ideal-t.min,t.max-t.ideal);
+  if(v<t.min)return Math.min(1,(t.min-v)/Math.max(t.min,0.01));
+  return Math.min(1,(v-t.max)/Math.max(1-t.max,0.01));
 }
-function rgbToHex(r,g,b){return '#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');}
+function getDev(v,t,lo,hi){const d=distScore(v,t),dir=v<t.min?'low':v>t.max?'high':'ok';return{dist:d,dir,label:dir==='low'?lo:dir==='high'?hi:'✓ on target'};}
+const TIPS={
+  volume:{low:'Project more — imagine speaking to someone 5m away.',high:'Ease back slightly.',ok:'Volume is solid.'},
+  speechRate:{low:'Pick up pace — Vinh targets ~130–145 WPM.',high:'Slow down — let ideas land.',ok:'Great pace. Vary it for effect.'},
+  pitch:{low:'Open your pitch range — try the siren glide: hum from low to high and back.',high:'Bring pitch centre lower.',ok:'Nice pitch range.'},
+  tonality:{low:'Add emotion — Vinh says tonality is the feeling beneath the words. Smile while you speak.',high:'Dial back intensity.',ok:'Tonality is working.'},
+  pause:{low:'Use silence — replace uh/um with a 1–3s pause.',high:'Pauses running long — audience disengages after 3s.',ok:'Pausing well.'},
+};
+function computeVinhScore(metrics){
+  const{volume,speechRate,pitch,tonality,pauseDuration,isSpeaking}=metrics;
+  if(!isSpeaking&&pauseDuration<0.05)return null;
+  const vD=distScore(volume,VINH_TARGETS.volume),rD=distScore(speechRate,VINH_TARGETS.speechRate);
+  const pD=distScore(pitch,VINH_TARGETS.pitch),tD=distScore(tonality,VINH_TARGETS.tonality);
+  const paD=distScore(pauseDuration,VINH_TARGETS.pause);
+  const weighted=vD*0.20+rD*0.20+pD*0.15+tD*0.30+paD*0.15;
+  const matchPct=Math.max(0,Math.round((1-weighted)*100));
+  const dims={
+    volume:     getDev(volume,      VINH_TARGETS.volume,    'too soft',      'too loud'),
+    speechRate: getDev(speechRate,  VINH_TARGETS.speechRate,'too slow',      'too fast'),
+    pitch:      getDev(pitch,       VINH_TARGETS.pitch,     'too monotone',  'too high'),
+    tonality:   getDev(tonality,    VINH_TARGETS.tonality,  'flat delivery', 'over-expressive'),
+    pause:      getDev(pauseDuration,VINH_TARGETS.pause,    'no pauses',     'too much silence'),
+  };
+  const worst=Object.entries(dims).sort((a,b)=>distScore(b[1].dist,{min:0,ideal:0,max:0})-distScore(a[1].dist,{min:0,ideal:0,max:0}))[0];
+  // pick highest dist
+  const worstKey=Object.entries(dims).sort((a,b)=>b[1].dist-a[1].dist)[0];
+  const tip=TIPS[worstKey[0]]?.[worstKey[1].dir]??'Keep speaking.';
+  return{matchPct,dims,tip};
+}
+
+// ─── Face Generator ───────────────────────────────────────────────────────────
+const ETHNICITY_PROFILES={
+  malay:   {skinRange:[{h:25,s:55,l:52},{h:28,s:60,l:48}],eyeType:['almond','almond','double'],   noseWidth:[0.48,0.56],lipFullness:[0.52,0.62],jawWidth:[0.72,0.82],hairColors:['#1a0a00','#0d0500','#1e1208']},
+  chinese: {skinRange:[{h:22,s:45,l:62},{h:25,s:50,l:68}],eyeType:['monolid','monolid','almond'], noseWidth:[0.40,0.48],lipFullness:[0.42,0.52],jawWidth:[0.68,0.76],hairColors:['#0a0500','#1a1000','#2a1800']},
+  indian:  {skinRange:[{h:20,s:60,l:38},{h:24,s:65,l:45}],eyeType:['double','almond','double'],   noseWidth:[0.50,0.60],lipFullness:[0.58,0.70],jawWidth:[0.74,0.84],hairColors:['#0d0500','#050200','#180c05']},
+};
+function lerp(a,b,t){return a+(b-a)*t;}
+function hslToRgb(h,s,l){s/=100;l/=100;const k=n=>(n+h/30)%12,a=s*Math.min(l,1-l),f=n=>l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1)));return[Math.round(f(0)*255),Math.round(f(8)*255),Math.round(f(4)*255)];}
+function rgbToHex(r,g,b){return'#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');}
 function hexToRgb(hex){return[parseInt(hex.slice(1,3),16),parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16)];}
-function darken(hex,a){const[r,g,b]=hexToRgb(hex);return `rgb(${Math.max(0,r-a)},${Math.max(0,g-a)},${Math.max(0,b-a)})`;}
-function lighten(hex,a){const[r,g,b]=hexToRgb(hex);return `rgb(${Math.min(255,r+a)},${Math.min(255,g+a)},${Math.min(255,b+a)})`;}
-
+function darken(hex,a){const[r,g,b]=hexToRgb(hex);return`rgb(${Math.max(0,r-a)},${Math.max(0,g-a)},${Math.max(0,b-a)})`;}
+function lighten(hex,a){const[r,g,b]=hexToRgb(hex);return`rgb(${Math.min(255,r+a)},${Math.min(255,g+a)},${Math.min(255,b+a)})`;}
 function seededRandom(seed){let s=seed;return()=>{s=(s*1664525+1013904223)&0xffffffff;return(s>>>0)/0xffffffff;};}
-
-function generateFace(id, genderHint='mixed'){
+function generateFace(id,genderHint='mixed'){
   const rand=seededRandom(id*31337+7);
-  const r0=rand(); const ethnicity=r0<0.4?'malay':r0<0.75?'chinese':'indian';
+  const r0=rand();const ethnicity=r0<0.4?'malay':r0<0.75?'chinese':'indian';
   const profile=ETHNICITY_PROFILES[ethnicity];
   const gender=genderHint==='male'?'male':genderHint==='female'?'female':rand()>0.5?'male':'female';
   const age=Math.floor(rand()*45)+15;
-  const skinT=rand(), s0=profile.skinRange[0], s1=profile.skinRange[1];
-  const [sr,sg,sb]=hslToRgb(lerp(s0.h,s1.h,skinT),lerp(s0.s,s1.s,skinT),lerp(s0.l,s1.l,skinT));
+  const skinT=rand(),s0=profile.skinRange[0],s1=profile.skinRange[1];
+  const[sr,sg,sb]=hslToRgb(lerp(s0.h,s1.h,skinT),lerp(s0.s,s1.s,skinT),lerp(s0.l,s1.l,skinT));
   const skinColor=rgbToHex(sr,sg,sb);
   const eyeType=profile.eyeType[Math.floor(rand()*profile.eyeType.length)];
   const noseWidth=lerp(profile.noseWidth[0],profile.noseWidth[1],rand());
@@ -61,383 +102,94 @@ function generateFace(id, genderHint='mixed'){
   const hairGrey=ageT>0.7?(ageT-0.7)*3.0:0;
   let hairColor=hairColorBase;
   if(hairGrey>0){const[hr,hg,hb]=hexToRgb(hairColorBase);hairColor=rgbToHex(Math.round(lerp(hr,160,hairGrey)),Math.round(lerp(hg,155,hairGrey)),Math.round(lerp(hb,155,hairGrey)));}
-  const femaleStyles=['long-straight','long-wavy','shoulder','bun','ponytail'];
-  const maleStyles=['short-side','short-crop','short-fade','medium-back'];
-  const hairStyle=(gender==='female'?femaleStyles:maleStyles)[Math.floor(rand()*(gender==='female'?5:4))];
+  const fS=gender==='female'?['long-straight','long-wavy','shoulder','bun','ponytail']:['short-side','short-crop','short-fade','medium-back'];
+  const hairStyle=fS[Math.floor(rand()*fS.length)];
   const hasBeard=gender==='male'&&age>18&&rand()>0.45;
   const beardStyle=hasBeard?['stubble','goatee','full'][Math.floor(rand()*3)]:null;
   const hasGlasses=rand()>(age>35?0.55:0.82);
   const glassesStyle=hasGlasses?['rectangle','round','rectangle'][Math.floor(rand()*3)]:null;
-  return {
-    id, ethnicity, gender, age, skinColor, eyeType, noseWidth, lipFullness, jawWidth, hairColor, hairStyle,
-    faceWidth:lerp(0.78,0.92,rand()), faceHeight:lerp(0.88,1.05,rand()),
-    eyeSpacing:lerp(0.36,0.46,rand()), eyeSize:lerp(0.09,0.14,rand()),
-    eyebrowArch:lerp(0.3,0.7,rand()), browThickness:gender==='male'?lerp(0.55,0.8,rand()):lerp(0.35,0.55,rand()),
-    earSize:lerp(0.12,0.18,rand()), noseBridge:lerp(0.3,0.6,rand()),
-    hasBeard, beardStyle, beardColor:hairColor, hasGlasses, glassesStyle,
-    wrinkleAmount, eyeDroop, expression:'neutral', expressionIntensity:0,
-  };
+  return{id,ethnicity,gender,age,skinColor,eyeType,noseWidth,lipFullness,jawWidth,hairColor,hairStyle,faceWidth:lerp(0.78,0.92,rand()),faceHeight:lerp(0.88,1.05,rand()),eyeSpacing:lerp(0.36,0.46,rand()),eyeSize:lerp(0.09,0.14,rand()),eyebrowArch:lerp(0.3,0.7,rand()),browThickness:gender==='male'?lerp(0.55,0.8,rand()):lerp(0.35,0.55,rand()),earSize:lerp(0.12,0.18,rand()),noseBridge:lerp(0.3,0.6,rand()),hasBeard,beardStyle,beardColor:hairColor,hasGlasses,glassesStyle,wrinkleAmount,eyeDroop,expression:'neutral',expressionIntensity:0};
 }
-
-function regenerateFaces(count, genderMode, ageMin, ageMax){
+function regenerateFaces(count,genderMode,ageMin,ageMax){
   return Array.from({length:count},(_,i)=>{
-    const base=generateFace(i+Date.now()%10000, genderMode);
+    const base=generateFace(i+Date.now()%10000,genderMode);
     const age=ageMin+Math.floor(Math.random()*(ageMax-ageMin+1));
     const ageT=(age-15)/45;
-    return {...base, age, wrinkleAmount:ageT>0.6?(ageT-0.6)*2.5:0, eyeDroop:ageT*0.3};
+    return{...base,age,wrinkleAmount:ageT>0.6?(ageT-0.6)*2.5:0,eyeDroop:ageT*0.3};
   });
 }
 
 // ─── Face Renderer ────────────────────────────────────────────────────────────
-const EXPR_PARAMS={
-  neutral:    {mouthCurve:0,    eyeOpen:0,    browRaise:0,   browFurrow:0,   eyeSquint:0},
-  engaged:    {mouthCurve:0.35, eyeOpen:0.25, browRaise:0.2, browFurrow:0,   eyeSquint:0},
-  amused:     {mouthCurve:0.55, eyeOpen:0.1,  browRaise:0.15,browFurrow:0,   eyeSquint:0.3},
-  confused:   {mouthCurve:-0.1, eyeOpen:0.1,  browRaise:0.3, browFurrow:0.5, eyeSquint:0},
-  bored:      {mouthCurve:-0.15,eyeOpen:-0.35,browRaise:-0.1,browFurrow:0,   eyeSquint:0.1},
-  distracted: {mouthCurve:0,    eyeOpen:-0.1, browRaise:0,   browFurrow:0,   eyeSquint:0},
-  concerned:  {mouthCurve:-0.2, eyeOpen:0.05, browRaise:0.1, browFurrow:0.6, eyeSquint:0},
-};
-
-function drawFace(ctx, face, w, h, expression='neutral', intensity=0){
+const EXPR_PARAMS={neutral:{mouthCurve:0,eyeOpen:0,browRaise:0,browFurrow:0,eyeSquint:0},engaged:{mouthCurve:0.35,eyeOpen:0.25,browRaise:0.2,browFurrow:0,eyeSquint:0},amused:{mouthCurve:0.55,eyeOpen:0.1,browRaise:0.15,browFurrow:0,eyeSquint:0.3},confused:{mouthCurve:-0.1,eyeOpen:0.1,browRaise:0.3,browFurrow:0.5,eyeSquint:0},bored:{mouthCurve:-0.15,eyeOpen:-0.35,browRaise:-0.1,browFurrow:0,eyeSquint:0.1},distracted:{mouthCurve:0,eyeOpen:-0.1,browRaise:0,browFurrow:0,eyeSquint:0},concerned:{mouthCurve:-0.2,eyeOpen:0.05,browRaise:0.1,browFurrow:0.6,eyeSquint:0}};
+function drawFace(ctx,face,w,h,expression='neutral',intensity=0){
   ctx.clearRect(0,0,w,h);
-  const cx=w/2, cy=h*0.52, rx=(w*face.faceWidth)/2, ry=(h*face.faceHeight)/2;
-  const expr=EXPR_PARAMS[expression]||EXPR_PARAMS.neutral;
-  const neutral=EXPR_PARAMS.neutral;
-  const bl={};
+  const cx=w/2,cy=h*0.52,rx=(w*face.faceWidth)/2,ry=(h*face.faceHeight)/2;
+  const expr=EXPR_PARAMS[expression]||EXPR_PARAMS.neutral,neutral=EXPR_PARAMS.neutral,bl={};
   for(const k in expr)bl[k]=lerp(neutral[k],expr[k],intensity);
-  _neck(ctx,cx,cy+ry*0.72,rx*0.28,h,face);
-  _ears(ctx,cx,cy,rx,ry,face);
-  _faceShape(ctx,cx,cy,rx,ry,face,bl);
-  _hair(ctx,cx,cy,rx,ry,face,w,h);
-  _eyebrows(ctx,cx,cy,rx,ry,face,bl);
-  _eyes(ctx,cx,cy,rx,ry,face,bl);
-  _nose(ctx,cx,cy,rx,ry,face);
-  _mouth(ctx,cx,cy,rx,ry,face,bl);
+  _neck(ctx,cx,cy+ry*0.72,rx*0.28,h,face);_ears(ctx,cx,cy,rx,ry,face);_faceShape(ctx,cx,cy,rx,ry,face,bl);
+  _hair(ctx,cx,cy,rx,ry,face,w,h);_eyebrows(ctx,cx,cy,rx,ry,face,bl);_eyes(ctx,cx,cy,rx,ry,face,bl);
+  _nose(ctx,cx,cy,rx,ry,face);_mouth(ctx,cx,cy,rx,ry,face,bl);
   if(face.hasBeard)_beard(ctx,cx,cy,rx,ry,face);
   if(face.hasGlasses)_glasses(ctx,cx,cy,rx,ry,face);
   if(face.wrinkleAmount>0)_wrinkles(ctx,cx,cy,rx,ry,face,bl);
 }
-
-function _neck(ctx,x,topY,nrx,h,face){
-  ctx.fillStyle=darken(face.skinColor,15);
-  ctx.beginPath();
-  ctx.ellipse(x,topY+(h-topY)*0.5,nrx,(h-topY)*0.7,0,0,Math.PI*2);
-  ctx.fill();
-}
-function _ears(ctx,cx,cy,rx,ry,face){
-  const erx=rx*face.earSize*0.65, ery=ry*face.earSize, ey=cy-ry*0.05;
-  for(const side of[-1,1]){
-    const ex=cx+side*(rx-erx*0.2);
-    const g=ctx.createRadialGradient(ex,ey,0,ex,ey,erx*2);
-    g.addColorStop(0,lighten(face.skinColor,5)); g.addColorStop(1,darken(face.skinColor,20));
-    ctx.fillStyle=g; ctx.beginPath(); ctx.ellipse(ex,ey,erx,ery,0,0,Math.PI*2); ctx.fill();
-    ctx.strokeStyle=darken(face.skinColor,30); ctx.lineWidth=0.8;
-    ctx.beginPath(); ctx.ellipse(ex,ey,erx*0.55,ery*0.6,0,0,Math.PI*2); ctx.stroke();
-  }
-}
-function _faceShape(ctx,cx,cy,rx,ry,face){
-  const grad=ctx.createRadialGradient(cx-rx*0.2,cy-ry*0.25,rx*0.1,cx,cy,rx*1.4);
-  grad.addColorStop(0,lighten(face.skinColor,18)); grad.addColorStop(0.5,face.skinColor); grad.addColorStop(1,darken(face.skinColor,22));
-  const jn=face.gender==='female'?0.82:0.92;
-  ctx.fillStyle=grad; ctx.beginPath();
-  ctx.ellipse(cx,cy-ry*0.1,rx,ry*1.05,0,Math.PI,0);
-  const jawY=cy+ry*0.72, chinY=cy+ry*0.98;
-  ctx.bezierCurveTo(cx+rx,cy+ry*0.3,cx+rx*jn*face.jawWidth,jawY,cx,chinY);
-  ctx.bezierCurveTo(cx-rx*jn*face.jawWidth,jawY,cx-rx,cy+ry*0.3,cx-rx,cy-ry*0.1);
-  ctx.fill();
-  if(face.gender==='female'){
-    for(const side of[-1,1]){
-      const bx=cx+side*rx*0.55, by=cy+ry*0.25;
-      const bg=ctx.createRadialGradient(bx,by,0,bx,by,rx*0.22);
-      bg.addColorStop(0,'rgba(220,120,110,0.12)'); bg.addColorStop(1,'rgba(220,120,110,0)');
-      ctx.fillStyle=bg; ctx.beginPath(); ctx.ellipse(bx,by,rx*0.22,ry*0.14,0,0,Math.PI*2); ctx.fill();
-    }
-  }
-}
-function _hair(ctx,cx,cy,rx,ry,face,w,h){
-  const hc=face.hairColor, s=face.hairStyle, topY=cy-ry*1.05;
-  ctx.fillStyle=hc; ctx.strokeStyle=darken(hc,20); ctx.lineWidth=1;
-  if(s==='short-crop'||s==='short-fade'||s==='short-side'){
-    ctx.beginPath(); ctx.ellipse(cx,topY+ry*0.28,rx*1.01,ry*0.58,0,Math.PI,0);
-    ctx.bezierCurveTo(cx+rx*1.01,topY+ry*0.28,cx+rx*0.92,topY+ry*0.05,cx,topY+ry*0.02);
-    ctx.bezierCurveTo(cx-rx*0.92,topY+ry*0.05,cx-rx*1.01,topY+ry*0.28,cx-rx*1.01,topY+ry*0.28);
-    ctx.fill();
-  } else if(s==='medium-back'){
-    ctx.beginPath(); ctx.ellipse(cx,topY+ry*0.3,rx*1.02,ry*0.65,0,Math.PI,0);
-    ctx.bezierCurveTo(cx+rx*1.02,topY+ry*0.3,cx+rx*1.02,cy,cx+rx*1.08,cy+ry*0.5);
-    ctx.bezierCurveTo(cx-rx*1.08,cy+ry*0.5,cx-rx*1.02,cy,cx-rx*1.02,topY+ry*0.3); ctx.fill();
-  } else if(s==='long-straight'){
-    ctx.beginPath();
-    ctx.moveTo(cx-rx*1.1,cy-ry*0.3);
-    ctx.bezierCurveTo(cx-rx*1.15,cy+ry*0.8,cx-rx*0.95,h*0.98,cx-rx*0.6,h);
-    ctx.lineTo(cx+rx*0.6,h);
-    ctx.bezierCurveTo(cx+rx*0.95,h*0.98,cx+rx*1.15,cy+ry*0.8,cx+rx*1.1,cy-ry*0.3); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(cx,topY+ry*0.28,rx*1.05,ry*0.6,0,Math.PI,0); ctx.fill();
-  } else if(s==='long-wavy'){
-    ctx.beginPath(); ctx.moveTo(cx-rx*1.12,cy-ry*0.25);
-    for(let i=0;i<6;i++){const t=i/6,wy=cy-ry*0.25+(h-cy+ry*0.25)*t,wx=cx-rx*1.12-Math.sin(t*Math.PI*3)*rx*0.12;ctx.lineTo(wx,wy);}
-    ctx.lineTo(cx-rx*0.5,h); ctx.lineTo(cx+rx*0.5,h);
-    for(let i=6;i>=0;i--){const t=i/6,wy=cy-ry*0.25+(h-cy+ry*0.25)*t,wx=cx+rx*1.12+Math.sin(t*Math.PI*3)*rx*0.12;ctx.lineTo(wx,wy);}
-    ctx.fill();
-    ctx.beginPath(); ctx.ellipse(cx,topY+ry*0.28,rx*1.06,ry*0.62,0,Math.PI,0); ctx.fill();
-  } else if(s==='shoulder'){
-    ctx.beginPath();
-    ctx.moveTo(cx-rx*1.08,cy-ry*0.3);
-    ctx.bezierCurveTo(cx-rx*1.1,cy+ry*0.6,cx-rx*0.85,cy+ry*0.9,cx-rx*0.65,cy+ry*1.1);
-    ctx.lineTo(cx+rx*0.65,cy+ry*1.1);
-    ctx.bezierCurveTo(cx+rx*0.85,cy+ry*0.9,cx+rx*1.1,cy+ry*0.6,cx+rx*1.08,cy-ry*0.3); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(cx,topY+ry*0.28,rx*1.05,ry*0.6,0,Math.PI,0); ctx.fill();
-  } else if(s==='bun'){
-    ctx.beginPath(); ctx.ellipse(cx,topY-ry*0.08,rx*0.38,ry*0.28,0,0,Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(cx,topY+ry*0.28,rx*1.02,ry*0.58,0,Math.PI,0); ctx.fill();
-  } else if(s==='ponytail'){
-    ctx.beginPath(); ctx.ellipse(cx,topY+ry*0.28,rx*1.02,ry*0.58,0,Math.PI,0); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(cx-rx*0.12,cy-ry*0.7);
-    ctx.bezierCurveTo(cx+rx*0.4,cy-ry*0.3,cx+rx*0.5,cy+ry*0.3,cx+rx*0.3,cy+ry*0.9);
-    ctx.lineWidth=rx*0.13; ctx.strokeStyle=hc; ctx.stroke(); ctx.lineWidth=1;
-  }
-}
-function _eyebrows(ctx,cx,cy,rx,ry,face,expr){
-  const browY=cy-ry*(0.28+expr.browRaise*0.1);
-  for(const side of[-1,1]){
-    const bx=cx+side*rx*face.eyeSpacing, ew=rx*0.22;
-    const arch=face.eyebrowArch*ry*0.07-expr.browFurrow*ry*0.04*side;
-    ctx.strokeStyle=face.hairColor; ctx.lineWidth=ry*0.055*face.browThickness; ctx.lineCap='round';
-    ctx.beginPath(); ctx.moveTo(bx-ew*0.8,browY+arch*0.2);
-    ctx.quadraticCurveTo(bx,browY-arch,bx+ew*0.8,browY+arch*0.3); ctx.stroke();
-  }
-}
-function _eyes(ctx,cx,cy,rx,ry,face,expr){
-  const eyeY=cy-ry*0.1, eSize=face.eyeSize*rx, droop=face.eyeDroop*ry*0.08;
-  const openMod=1+expr.eyeOpen*0.4-expr.eyeSquint*0.3, eH=eSize*0.52*openMod;
-  for(const side of[-1,1]){
-    const ex=cx+side*rx*face.eyeSpacing, ey=eyeY+droop;
-    ctx.fillStyle='#f8f6f0'; ctx.beginPath();
-    if(face.eyeType==='monolid'){ctx.ellipse(ex,ey,eSize,eH*0.8,0,0,Math.PI*2);}
-    else if(face.eyeType==='almond'){ctx.moveTo(ex-eSize,ey);ctx.bezierCurveTo(ex-eSize*0.5,ey-eH,ex+eSize*0.5,ey-eH,ex+eSize,ey);ctx.bezierCurveTo(ex+eSize*0.5,ey+eH*0.7,ex-eSize*0.5,ey+eH*0.7,ex-eSize,ey);}
-    else{ctx.moveTo(ex-eSize,ey);ctx.bezierCurveTo(ex-eSize*0.5,ey-eH*1.1,ex+eSize*0.5,ey-eH*1.1,ex+eSize,ey);ctx.bezierCurveTo(ex+eSize*0.5,ey+eH*0.8,ex-eSize*0.5,ey+eH*0.8,ex-eSize,ey);}
-    ctx.closePath(); ctx.fill();
-    const irisR=eSize*0.48, iC=face.ethnicity==='chinese'?'#3d2b1f':face.ethnicity==='indian'?'#2a1a0e':'#2e1a0f';
-    const ig=ctx.createRadialGradient(ex-irisR*0.25,ey-irisR*0.2,irisR*0.05,ex,ey,irisR);
-    ig.addColorStop(0,lighten(iC,30)); ig.addColorStop(0.4,iC); ig.addColorStop(1,darken(iC,20));
-    ctx.fillStyle=ig; ctx.beginPath(); ctx.arc(ex,ey,irisR,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='#0a0505'; ctx.beginPath(); ctx.arc(ex,ey,irisR*0.52,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='rgba(255,255,255,0.75)'; ctx.beginPath(); ctx.arc(ex+irisR*0.28,ey-irisR*0.28,irisR*0.16,0,Math.PI*2); ctx.fill();
-    ctx.strokeStyle=darken(face.skinColor,50); ctx.lineWidth=1.2;
-    ctx.beginPath();
-    if(face.eyeType==='monolid'){ctx.ellipse(ex,ey,eSize,eH*0.8,0,0,Math.PI*2);}
-    else if(face.eyeType==='almond'){ctx.moveTo(ex-eSize,ey);ctx.bezierCurveTo(ex-eSize*0.5,ey-eH,ex+eSize*0.5,ey-eH,ex+eSize,ey);}
-    else{ctx.moveTo(ex-eSize,ey);ctx.bezierCurveTo(ex-eSize*0.5,ey-eH*1.1,ex+eSize*0.5,ey-eH*1.1,ex+eSize,ey);}
-    ctx.stroke();
-    if(face.eyeType!=='monolid'){
-      ctx.strokeStyle=darken(face.skinColor,18); ctx.lineWidth=0.7;
-      ctx.beginPath(); ctx.moveTo(ex-eSize*0.6,ey-eH*0.9);
-      ctx.bezierCurveTo(ex,ey-eH*1.35,ex+eSize*0.6,ey-eH*0.9,ex+eSize*0.8,ey-eH*0.4); ctx.stroke();
-    }
-    ctx.strokeStyle='#1a0a00'; ctx.lineWidth=0.6;
-    ctx.beginPath(); ctx.moveTo(ex-eSize,ey);
-    ctx.bezierCurveTo(ex-eSize*0.5,ey+eH*0.7,ex+eSize*0.5,ey+eH*0.7,ex+eSize,ey); ctx.stroke();
-  }
-}
-function _nose(ctx,cx,cy,rx,ry,face){
-  const nt=cy+ry*0.05, nb=cy+ry*0.38, nw=rx*face.noseWidth*0.48;
-  ctx.strokeStyle=darken(face.skinColor,12); ctx.lineWidth=rx*0.04; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(cx-rx*0.02,nt);
-  ctx.bezierCurveTo(cx-rx*face.noseBridge*0.05,nt+(nb-nt)*0.5,cx,nb-ry*0.06,cx,nb-ry*0.04); ctx.stroke();
-  ctx.fillStyle=darken(face.skinColor,25);
-  ctx.beginPath(); ctx.ellipse(cx-nw*0.5,nb,nw*0.35,ry*0.07,-0.3,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(cx+nw*0.5,nb,nw*0.35,ry*0.07,0.3,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle=darken(face.skinColor,55);
-  ctx.beginPath(); ctx.ellipse(cx-nw*0.48,nb+ry*0.01,nw*0.18,ry*0.045,-0.2,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(cx+nw*0.48,nb+ry*0.01,nw*0.18,ry*0.045,0.2,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle=lighten(face.skinColor,8);
-  ctx.beginPath(); ctx.ellipse(cx,nb-ry*0.04,nw*0.38,ry*0.065,0,0,Math.PI*2); ctx.fill();
-}
-function _mouth(ctx,cx,cy,rx,ry,face,expr){
-  const my=cy+ry*0.6, mw=rx*(face.lipFullness*0.55+0.18), c=expr.mouthCurve, lH=ry*face.lipFullness*0.075;
-  ctx.fillStyle=darken(face.skinColor,18);
-  ctx.beginPath();
-  ctx.moveTo(cx-mw,my+c*lH*0.5);
-  ctx.bezierCurveTo(cx-mw*0.5,my-lH*0.6,cx-mw*0.15,my-lH*0.9,cx,my-lH*0.7);
-  ctx.bezierCurveTo(cx+mw*0.15,my-lH*0.9,cx+mw*0.5,my-lH*0.6,cx+mw,my+c*lH*0.5);
-  ctx.bezierCurveTo(cx+mw*0.4,my+lH*0.2+c*lH,cx-mw*0.4,my+lH*0.2+c*lH,cx-mw,my+c*lH*0.5); ctx.fill();
-  ctx.fillStyle=lighten(face.skinColor,5);
-  ctx.beginPath();
-  ctx.moveTo(cx-mw,my+c*lH*0.5);
-  ctx.bezierCurveTo(cx-mw*0.4,my+lH*0.2+c*lH,cx+mw*0.4,my+lH*0.2+c*lH,cx+mw,my+c*lH*0.5);
-  ctx.bezierCurveTo(cx+mw*0.5,my+lH*1.5+c*lH*0.8,cx-mw*0.5,my+lH*1.5+c*lH*0.8,cx-mw,my+c*lH*0.5); ctx.fill();
-  ctx.strokeStyle=darken(face.skinColor,28); ctx.lineWidth=0.8;
-  ctx.beginPath(); ctx.moveTo(cx-mw,my+c*lH*0.5);
-  ctx.bezierCurveTo(cx-mw*0.4,my+lH*0.2+c*lH,cx+mw*0.4,my+lH*0.2+c*lH,cx+mw,my+c*lH*0.5); ctx.stroke();
-  if(c>0.45){
-    ctx.fillStyle='#f5f0e8';
-    ctx.beginPath(); ctx.ellipse(cx,my+lH*0.6+c*lH*0.5,mw*0.55,lH*0.55,0,0,Math.PI*2); ctx.fill();
-  }
-}
-function _beard(ctx,cx,cy,rx,ry,face){
-  const jawY=cy+ry*0.72, chinY=cy+ry*0.98;
-  if(face.beardStyle==='stubble'){
-    for(let i=0;i<100;i++){
-      const sx=cx+(Math.random()*rx*1.7-rx*0.85), sy=cy+ry*0.3+Math.random()*ry*0.7;
-      if(sy>jawY*0.85&&sy<chinY*1.02){
-        ctx.fillStyle=`rgba(${hexToRgb(face.beardColor).join(',')},${0.2+Math.random()*0.2})`;
-        ctx.beginPath(); ctx.arc(sx,sy,0.7,0,Math.PI*2); ctx.fill();
-      }
-    }
-  } else if(face.beardStyle==='goatee'){
-    ctx.fillStyle=`rgba(${hexToRgb(face.beardColor).join(',')},0.7)`;
-    ctx.beginPath(); ctx.ellipse(cx,chinY-ry*0.06,rx*0.22,ry*0.14,0,0,Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(cx,cy+ry*0.56,rx*0.28,ry*0.055,0,0,Math.PI*2); ctx.fill();
-  } else {
-    ctx.fillStyle=`rgba(${hexToRgb(face.beardColor).join(',')},0.7)`;
-    ctx.beginPath(); ctx.moveTo(cx-rx*0.75,cy+ry*0.35);
-    ctx.bezierCurveTo(cx-rx*0.85,jawY,cx-rx*0.55,chinY,cx,chinY+ry*0.06);
-    ctx.bezierCurveTo(cx+rx*0.55,chinY,cx+rx*0.85,jawY,cx+rx*0.75,cy+ry*0.35); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(cx,cy+ry*0.56,rx*0.3,ry*0.06,0,0,Math.PI*2); ctx.fill();
-  }
-}
-function _glasses(ctx,cx,cy,rx,ry,face){
-  const ey=cy-ry*0.1+face.eyeDroop*ry*0.08, gx1=cx-rx*face.eyeSpacing, gx2=cx+rx*face.eyeSpacing, gR=rx*0.22;
-  ctx.strokeStyle='#3a3028'; ctx.lineWidth=1.2; ctx.fillStyle='rgba(200,230,255,0.08)';
-  if(face.glassesStyle==='rectangle'){
-    const hw=gR*1.05, hh=gR*0.65;
-    for(const gx of[gx1,gx2]){ctx.beginPath();ctx.roundRect(gx-hw,ey-hh,hw*2,hh*2,3);ctx.fill();ctx.stroke();}
-  } else {
-    for(const gx of[gx1,gx2]){ctx.beginPath();ctx.arc(gx,ey,gR*0.88,0,Math.PI*2);ctx.fill();ctx.stroke();}
-  }
-  const hw=face.glassesStyle==='rectangle'?gR*1.05:gR*0.88;
-  ctx.beginPath(); ctx.moveTo(gx1+hw,ey); ctx.lineTo(gx2-hw,ey); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(gx1-hw,ey); ctx.lineTo(cx-rx*0.9,ey-ry*0.02); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(gx2+hw,ey); ctx.lineTo(cx+rx*0.9,ey-ry*0.02); ctx.stroke();
-}
-function _wrinkles(ctx,cx,cy,rx,ry,face){
-  const a=face.wrinkleAmount;
-  ctx.strokeStyle=darken(face.skinColor,22); ctx.lineWidth=0.55; ctx.lineCap='round';
-  for(let i=0;i<Math.floor(a*3);i++){
-    const wy=cy-ry*(0.48-i*0.08);
-    ctx.beginPath(); ctx.moveTo(cx-rx*0.4,wy);
-    ctx.bezierCurveTo(cx-rx*0.1,wy-ry*0.015,cx+rx*0.1,wy-ry*0.015,cx+rx*0.4,wy); ctx.stroke();
-  }
-  if(a>0.2){
-    for(const side of[-1,1]){
-      ctx.beginPath(); ctx.moveTo(cx+side*rx*0.28,cy+ry*0.1);
-      ctx.bezierCurveTo(cx+side*rx*0.42,cy+ry*0.28,cx+side*rx*0.38,cy+ry*0.5,cx+side*rx*0.28,cy+ry*0.58); ctx.stroke();
-    }
-  }
-}
+function _neck(ctx,x,topY,nrx,h,face){ctx.fillStyle=darken(face.skinColor,15);ctx.beginPath();ctx.ellipse(x,topY+(h-topY)*0.5,nrx,(h-topY)*0.7,0,0,Math.PI*2);ctx.fill();}
+function _ears(ctx,cx,cy,rx,ry,face){const erx=rx*face.earSize*0.65,ery=ry*face.earSize,ey=cy-ry*0.05;for(const side of[-1,1]){const ex=cx+side*(rx-erx*0.2);const g=ctx.createRadialGradient(ex,ey,0,ex,ey,erx*2);g.addColorStop(0,lighten(face.skinColor,5));g.addColorStop(1,darken(face.skinColor,20));ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(ex,ey,erx,ery,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle=darken(face.skinColor,30);ctx.lineWidth=0.8;ctx.beginPath();ctx.ellipse(ex,ey,erx*0.55,ery*0.6,0,0,Math.PI*2);ctx.stroke();}}
+function _faceShape(ctx,cx,cy,rx,ry,face){const grad=ctx.createRadialGradient(cx-rx*0.2,cy-ry*0.25,rx*0.1,cx,cy,rx*1.4);grad.addColorStop(0,lighten(face.skinColor,18));grad.addColorStop(0.5,face.skinColor);grad.addColorStop(1,darken(face.skinColor,22));const jn=face.gender==='female'?0.82:0.92;ctx.fillStyle=grad;ctx.beginPath();ctx.ellipse(cx,cy-ry*0.1,rx,ry*1.05,0,Math.PI,0);const jawY=cy+ry*0.72,chinY=cy+ry*0.98;ctx.bezierCurveTo(cx+rx,cy+ry*0.3,cx+rx*jn*face.jawWidth,jawY,cx,chinY);ctx.bezierCurveTo(cx-rx*jn*face.jawWidth,jawY,cx-rx,cy+ry*0.3,cx-rx,cy-ry*0.1);ctx.fill();if(face.gender==='female'){for(const side of[-1,1]){const bx=cx+side*rx*0.55,by=cy+ry*0.25;const bg=ctx.createRadialGradient(bx,by,0,bx,by,rx*0.22);bg.addColorStop(0,'rgba(220,120,110,0.12)');bg.addColorStop(1,'rgba(220,120,110,0)');ctx.fillStyle=bg;ctx.beginPath();ctx.ellipse(bx,by,rx*0.22,ry*0.14,0,0,Math.PI*2);ctx.fill();}}}
+function _hair(ctx,cx,cy,rx,ry,face,w,h){const hc=face.hairColor,s=face.hairStyle,topY=cy-ry*1.05;ctx.fillStyle=hc;ctx.strokeStyle=darken(hc,20);ctx.lineWidth=1;if(s==='short-crop'||s==='short-fade'||s==='short-side'){ctx.beginPath();ctx.ellipse(cx,topY+ry*0.28,rx*1.01,ry*0.58,0,Math.PI,0);ctx.bezierCurveTo(cx+rx*1.01,topY+ry*0.28,cx+rx*0.92,topY+ry*0.05,cx,topY+ry*0.02);ctx.bezierCurveTo(cx-rx*0.92,topY+ry*0.05,cx-rx*1.01,topY+ry*0.28,cx-rx*1.01,topY+ry*0.28);ctx.fill();}else if(s==='medium-back'){ctx.beginPath();ctx.ellipse(cx,topY+ry*0.3,rx*1.02,ry*0.65,0,Math.PI,0);ctx.bezierCurveTo(cx+rx*1.02,topY+ry*0.3,cx+rx*1.02,cy,cx+rx*1.08,cy+ry*0.5);ctx.bezierCurveTo(cx-rx*1.08,cy+ry*0.5,cx-rx*1.02,cy,cx-rx*1.02,topY+ry*0.3);ctx.fill();}else if(s==='long-straight'){ctx.beginPath();ctx.moveTo(cx-rx*1.1,cy-ry*0.3);ctx.bezierCurveTo(cx-rx*1.15,cy+ry*0.8,cx-rx*0.95,h*0.98,cx-rx*0.6,h);ctx.lineTo(cx+rx*0.6,h);ctx.bezierCurveTo(cx+rx*0.95,h*0.98,cx+rx*1.15,cy+ry*0.8,cx+rx*1.1,cy-ry*0.3);ctx.fill();ctx.beginPath();ctx.ellipse(cx,topY+ry*0.28,rx*1.05,ry*0.6,0,Math.PI,0);ctx.fill();}else if(s==='long-wavy'){ctx.beginPath();ctx.moveTo(cx-rx*1.12,cy-ry*0.25);for(let i=0;i<6;i++){const t=i/6,wy=cy-ry*0.25+(h-cy+ry*0.25)*t,wx=cx-rx*1.12-Math.sin(t*Math.PI*3)*rx*0.12;ctx.lineTo(wx,wy);}ctx.lineTo(cx-rx*0.5,h);ctx.lineTo(cx+rx*0.5,h);for(let i=6;i>=0;i--){const t=i/6,wy=cy-ry*0.25+(h-cy+ry*0.25)*t,wx=cx+rx*1.12+Math.sin(t*Math.PI*3)*rx*0.12;ctx.lineTo(wx,wy);}ctx.fill();ctx.beginPath();ctx.ellipse(cx,topY+ry*0.28,rx*1.06,ry*0.62,0,Math.PI,0);ctx.fill();}else if(s==='shoulder'){ctx.beginPath();ctx.moveTo(cx-rx*1.08,cy-ry*0.3);ctx.bezierCurveTo(cx-rx*1.1,cy+ry*0.6,cx-rx*0.85,cy+ry*0.9,cx-rx*0.65,cy+ry*1.1);ctx.lineTo(cx+rx*0.65,cy+ry*1.1);ctx.bezierCurveTo(cx+rx*0.85,cy+ry*0.9,cx+rx*1.1,cy+ry*0.6,cx+rx*1.08,cy-ry*0.3);ctx.fill();ctx.beginPath();ctx.ellipse(cx,topY+ry*0.28,rx*1.05,ry*0.6,0,Math.PI,0);ctx.fill();}else if(s==='bun'){ctx.beginPath();ctx.ellipse(cx,topY-ry*0.08,rx*0.38,ry*0.28,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.ellipse(cx,topY+ry*0.28,rx*1.02,ry*0.58,0,Math.PI,0);ctx.fill();}else if(s==='ponytail'){ctx.beginPath();ctx.ellipse(cx,topY+ry*0.28,rx*1.02,ry*0.58,0,Math.PI,0);ctx.fill();ctx.beginPath();ctx.moveTo(cx-rx*0.12,cy-ry*0.7);ctx.bezierCurveTo(cx+rx*0.4,cy-ry*0.3,cx+rx*0.5,cy+ry*0.3,cx+rx*0.3,cy+ry*0.9);ctx.lineWidth=rx*0.13;ctx.strokeStyle=hc;ctx.stroke();ctx.lineWidth=1;}}
+function _eyebrows(ctx,cx,cy,rx,ry,face,expr){const browY=cy-ry*(0.28+expr.browRaise*0.1);for(const side of[-1,1]){const bx=cx+side*rx*face.eyeSpacing,ew=rx*0.22;const arch=face.eyebrowArch*ry*0.07-expr.browFurrow*ry*0.04*side;ctx.strokeStyle=face.hairColor;ctx.lineWidth=ry*0.055*face.browThickness;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(bx-ew*0.8,browY+arch*0.2);ctx.quadraticCurveTo(bx,browY-arch,bx+ew*0.8,browY+arch*0.3);ctx.stroke();}}
+function _eyes(ctx,cx,cy,rx,ry,face,expr){const eyeY=cy-ry*0.1,eSize=face.eyeSize*rx,droop=face.eyeDroop*ry*0.08,openMod=1+expr.eyeOpen*0.4-expr.eyeSquint*0.3,eH=eSize*0.52*openMod;for(const side of[-1,1]){const ex=cx+side*rx*face.eyeSpacing,ey=eyeY+droop;ctx.fillStyle='#f8f6f0';ctx.beginPath();if(face.eyeType==='monolid'){ctx.ellipse(ex,ey,eSize,eH*0.8,0,0,Math.PI*2);}else if(face.eyeType==='almond'){ctx.moveTo(ex-eSize,ey);ctx.bezierCurveTo(ex-eSize*0.5,ey-eH,ex+eSize*0.5,ey-eH,ex+eSize,ey);ctx.bezierCurveTo(ex+eSize*0.5,ey+eH*0.7,ex-eSize*0.5,ey+eH*0.7,ex-eSize,ey);}else{ctx.moveTo(ex-eSize,ey);ctx.bezierCurveTo(ex-eSize*0.5,ey-eH*1.1,ex+eSize*0.5,ey-eH*1.1,ex+eSize,ey);ctx.bezierCurveTo(ex+eSize*0.5,ey+eH*0.8,ex-eSize*0.5,ey+eH*0.8,ex-eSize,ey);}ctx.closePath();ctx.fill();const irisR=eSize*0.48,iC=face.ethnicity==='chinese'?'#3d2b1f':face.ethnicity==='indian'?'#2a1a0e':'#2e1a0f';const ig=ctx.createRadialGradient(ex-irisR*0.25,ey-irisR*0.2,irisR*0.05,ex,ey,irisR);ig.addColorStop(0,lighten(iC,30));ig.addColorStop(0.4,iC);ig.addColorStop(1,darken(iC,20));ctx.fillStyle=ig;ctx.beginPath();ctx.arc(ex,ey,irisR,0,Math.PI*2);ctx.fill();ctx.fillStyle='#0a0505';ctx.beginPath();ctx.arc(ex,ey,irisR*0.52,0,Math.PI*2);ctx.fill();ctx.fillStyle='rgba(255,255,255,0.75)';ctx.beginPath();ctx.arc(ex+irisR*0.28,ey-irisR*0.28,irisR*0.16,0,Math.PI*2);ctx.fill();ctx.strokeStyle=darken(face.skinColor,50);ctx.lineWidth=1.2;ctx.beginPath();if(face.eyeType==='monolid'){ctx.ellipse(ex,ey,eSize,eH*0.8,0,0,Math.PI*2);}else if(face.eyeType==='almond'){ctx.moveTo(ex-eSize,ey);ctx.bezierCurveTo(ex-eSize*0.5,ey-eH,ex+eSize*0.5,ey-eH,ex+eSize,ey);}else{ctx.moveTo(ex-eSize,ey);ctx.bezierCurveTo(ex-eSize*0.5,ey-eH*1.1,ex+eSize*0.5,ey-eH*1.1,ex+eSize,ey);}ctx.stroke();if(face.eyeType!=='monolid'){ctx.strokeStyle=darken(face.skinColor,18);ctx.lineWidth=0.7;ctx.beginPath();ctx.moveTo(ex-eSize*0.6,ey-eH*0.9);ctx.bezierCurveTo(ex,ey-eH*1.35,ex+eSize*0.6,ey-eH*0.9,ex+eSize*0.8,ey-eH*0.4);ctx.stroke();}ctx.strokeStyle='#1a0a00';ctx.lineWidth=0.6;ctx.beginPath();ctx.moveTo(ex-eSize,ey);ctx.bezierCurveTo(ex-eSize*0.5,ey+eH*0.7,ex+eSize*0.5,ey+eH*0.7,ex+eSize,ey);ctx.stroke();}}
+function _nose(ctx,cx,cy,rx,ry,face){const nt=cy+ry*0.05,nb=cy+ry*0.38,nw=rx*face.noseWidth*0.48;ctx.strokeStyle=darken(face.skinColor,12);ctx.lineWidth=rx*0.04;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(cx-rx*0.02,nt);ctx.bezierCurveTo(cx-rx*face.noseBridge*0.05,nt+(nb-nt)*0.5,cx,nb-ry*0.06,cx,nb-ry*0.04);ctx.stroke();ctx.fillStyle=darken(face.skinColor,25);ctx.beginPath();ctx.ellipse(cx-nw*0.5,nb,nw*0.35,ry*0.07,-0.3,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.ellipse(cx+nw*0.5,nb,nw*0.35,ry*0.07,0.3,0,Math.PI*2);ctx.fill();ctx.fillStyle=darken(face.skinColor,55);ctx.beginPath();ctx.ellipse(cx-nw*0.48,nb+ry*0.01,nw*0.18,ry*0.045,-0.2,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.ellipse(cx+nw*0.48,nb+ry*0.01,nw*0.18,ry*0.045,0.2,0,Math.PI*2);ctx.fill();ctx.fillStyle=lighten(face.skinColor,8);ctx.beginPath();ctx.ellipse(cx,nb-ry*0.04,nw*0.38,ry*0.065,0,0,Math.PI*2);ctx.fill();}
+function _mouth(ctx,cx,cy,rx,ry,face,expr){const my=cy+ry*0.6,mw=rx*(face.lipFullness*0.55+0.18),c=expr.mouthCurve,lH=ry*face.lipFullness*0.075;ctx.fillStyle=darken(face.skinColor,18);ctx.beginPath();ctx.moveTo(cx-mw,my+c*lH*0.5);ctx.bezierCurveTo(cx-mw*0.5,my-lH*0.6,cx-mw*0.15,my-lH*0.9,cx,my-lH*0.7);ctx.bezierCurveTo(cx+mw*0.15,my-lH*0.9,cx+mw*0.5,my-lH*0.6,cx+mw,my+c*lH*0.5);ctx.bezierCurveTo(cx+mw*0.4,my+lH*0.2+c*lH,cx-mw*0.4,my+lH*0.2+c*lH,cx-mw,my+c*lH*0.5);ctx.fill();ctx.fillStyle=lighten(face.skinColor,5);ctx.beginPath();ctx.moveTo(cx-mw,my+c*lH*0.5);ctx.bezierCurveTo(cx-mw*0.4,my+lH*0.2+c*lH,cx+mw*0.4,my+lH*0.2+c*lH,cx+mw,my+c*lH*0.5);ctx.bezierCurveTo(cx+mw*0.5,my+lH*1.5+c*lH*0.8,cx-mw*0.5,my+lH*1.5+c*lH*0.8,cx-mw,my+c*lH*0.5);ctx.fill();ctx.strokeStyle=darken(face.skinColor,28);ctx.lineWidth=0.8;ctx.beginPath();ctx.moveTo(cx-mw,my+c*lH*0.5);ctx.bezierCurveTo(cx-mw*0.4,my+lH*0.2+c*lH,ctx.mw*0.4,my+lH*0.2+c*lH,cx+mw,my+c*lH*0.5);ctx.stroke();if(c>0.45){ctx.fillStyle='#f5f0e8';ctx.beginPath();ctx.ellipse(cx,my+lH*0.6+c*lH*0.5,mw*0.55,lH*0.55,0,0,Math.PI*2);ctx.fill();}}
+function _beard(ctx,cx,cy,rx,ry,face){const jawY=cy+ry*0.72,chinY=cy+ry*0.98;if(face.beardStyle==='stubble'){for(let i=0;i<100;i++){const sx=cx+(Math.random()*rx*1.7-rx*0.85),sy=cy+ry*0.3+Math.random()*ry*0.7;if(sy>jawY*0.85&&sy<chinY*1.02){ctx.fillStyle=`rgba(${hexToRgb(face.beardColor).join(',')},${0.2+Math.random()*0.2})`;ctx.beginPath();ctx.arc(sx,sy,0.7,0,Math.PI*2);ctx.fill();}}}else if(face.beardStyle==='goatee'){ctx.fillStyle=`rgba(${hexToRgb(face.beardColor).join(',')},0.7)`;ctx.beginPath();ctx.ellipse(cx,chinY-ry*0.06,rx*0.22,ry*0.14,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.ellipse(cx,cy+ry*0.56,rx*0.28,ry*0.055,0,0,Math.PI*2);ctx.fill();}else{ctx.fillStyle=`rgba(${hexToRgb(face.beardColor).join(',')},0.7)`;ctx.beginPath();ctx.moveTo(cx-rx*0.75,cy+ry*0.35);ctx.bezierCurveTo(cx-rx*0.85,jawY,cx-rx*0.55,chinY,cx,chinY+ry*0.06);ctx.bezierCurveTo(cx+rx*0.55,chinY,cx+rx*0.85,jawY,cx+rx*0.75,cy+ry*0.35);ctx.fill();ctx.beginPath();ctx.ellipse(cx,cy+ry*0.56,rx*0.3,ry*0.06,0,0,Math.PI*2);ctx.fill();}}
+function _glasses(ctx,cx,cy,rx,ry,face){const ey=cy-ry*0.1+face.eyeDroop*ry*0.08,gx1=cx-rx*face.eyeSpacing,gx2=cx+rx*face.eyeSpacing,gR=rx*0.22;ctx.strokeStyle='#3a3028';ctx.lineWidth=1.2;ctx.fillStyle='rgba(200,230,255,0.08)';const hw=face.glassesStyle==='rectangle'?gR*1.05:gR*0.88;if(face.glassesStyle==='rectangle'){for(const gx of[gx1,gx2]){ctx.beginPath();ctx.roundRect(gx-hw,ey-gR*0.65,hw*2,gR*1.3,3);ctx.fill();ctx.stroke();}}else{for(const gx of[gx1,gx2]){ctx.beginPath();ctx.arc(gx,ey,gR*0.88,0,Math.PI*2);ctx.fill();ctx.stroke();}}ctx.beginPath();ctx.moveTo(gx1+hw,ey);ctx.lineTo(gx2-hw,ey);ctx.stroke();ctx.beginPath();ctx.moveTo(gx1-hw,ey);ctx.lineTo(cx-rx*0.9,ey-ry*0.02);ctx.stroke();ctx.beginPath();ctx.moveTo(gx2+hw,ey);ctx.lineTo(cx+rx*0.9,ey-ry*0.02);ctx.stroke();}
+function _wrinkles(ctx,cx,cy,rx,ry,face){const a=face.wrinkleAmount;ctx.strokeStyle=darken(face.skinColor,22);ctx.lineWidth=0.55;ctx.lineCap='round';for(let i=0;i<Math.floor(a*3);i++){const wy=cy-ry*(0.48-i*0.08);ctx.beginPath();ctx.moveTo(cx-rx*0.4,wy);ctx.bezierCurveTo(cx-rx*0.1,wy-ry*0.015,cx+rx*0.1,wy-ry*0.015,cx+rx*0.4,wy);ctx.stroke();}if(a>0.2){for(const side of[-1,1]){ctx.beginPath();ctx.moveTo(cx+side*rx*0.28,cy+ry*0.1);ctx.bezierCurveTo(cx+side*rx*0.42,cy+ry*0.28,cx+side*rx*0.38,cy+ry*0.5,cx+side*rx*0.28,cy+ry*0.58);ctx.stroke();}}}
 
 // ─── Reaction Engine ─────────────────────────────────────────────────────────
-function ageWeights(age){
-  if(age<25)return{energy:0.7,clarity:0.3,formality:0.2,pause:0.4};
-  if(age<40)return{energy:0.5,clarity:0.5,formality:0.4,pause:0.5};
-  return{energy:0.35,clarity:0.6,formality:0.7,pause:0.6};
-}
-
-function computeTargetExpression(face, metrics, aspects){
-  const w=ageWeights(face.age), ms=metrics.malaysianScore;
+function ageWeights(age){if(age<25)return{energy:0.7,clarity:0.3,formality:0.2,pause:0.4};if(age<40)return{energy:0.5,clarity:0.5,formality:0.4,pause:0.5};return{energy:0.35,clarity:0.6,formality:0.7,pause:0.6};}
+function computeTargetExpression(face,metrics,aspects){
+  const w=ageWeights(face.age),ms=metrics.malaysianScore;
   let engaged=0,amused=0,bored=0,confused=0,distracted=0,concerned=0;
   if(aspects.volume){if(metrics.volume>0.55)engaged+=0.5*w.energy;else if(metrics.volume<0.2&&metrics.isSpeaking)bored+=0.35*w.energy;}
   if(aspects.speechRate){if(metrics.speechRate>0.75){confused+=0.4;if(face.age>40)concerned+=0.2;}else if(metrics.speechRate>0.35&&metrics.speechRate<0.65)engaged+=0.25;}
   if(aspects.pitch&&metrics.pitch>0.6){engaged+=0.2;if(face.age<30)amused+=0.15;}
   if(aspects.tonality){if(metrics.tonality>0.5){engaged+=0.4*w.energy;amused+=0.2;}else if(metrics.tonality<0.15&&metrics.isSpeaking){bored+=0.45;if(face.age>35)concerned+=0.15;}}
   if(aspects.pauses){if(metrics.pauseDuration>0.6){distracted+=0.5*w.pause;if(face.age>35)concerned+=0.25*w.formality;}else if(metrics.pauseDuration>0.1&&metrics.pauseDuration<0.4)engaged+=0.1;}
-  if(aspects.malaysianNorms){
-    if(ms.tooSoft>0.4){bored+=ms.tooSoft*0.4;distracted+=ms.tooSoft*0.2;}
-    if(ms.fillerRhythm>0.3){confused+=ms.fillerRhythm*0.3;amused+=ms.fillerRhythm*0.15*(face.age<28?1.5:0.7);}
-    if(ms.tooFast>0.4){confused+=ms.tooFast*0.5;concerned+=ms.tooFast*0.2*(face.age>35?1.3:0.8);}
-    if(ms.monotone>0.5){bored+=ms.monotone*0.55*w.energy;distracted+=ms.monotone*0.2;}
-    if(ms.longPause>0.4){distracted+=ms.longPause*0.4;concerned+=ms.longPause*0.25*w.formality;}
-  }
+  if(aspects.malaysianNorms){if(ms.tooSoft>0.4){bored+=ms.tooSoft*0.4;distracted+=ms.tooSoft*0.2;}if(ms.fillerRhythm>0.3){confused+=ms.fillerRhythm*0.3;amused+=ms.fillerRhythm*0.15*(face.age<28?1.5:0.7);}if(ms.tooFast>0.4){confused+=ms.tooFast*0.5;concerned+=ms.tooFast*0.2*(face.age>35?1.3:0.8);}if(ms.monotone>0.5){bored+=ms.monotone*0.55*w.energy;distracted+=ms.monotone*0.2;}if(ms.longPause>0.4){distracted+=ms.longPause*0.4;concerned+=ms.longPause*0.25*w.formality;}}
   if(!metrics.isSpeaking&&metrics.pauseDuration>0.15){distracted+=0.2;bored+=0.1;}
   const scores={engaged,amused,bored,confused,distracted,concerned};
   const best=Object.entries(scores).sort((a,b)=>b[1]-a[1])[0];
   if(best[1]<0.05)return{expression:'neutral',intensity:0};
   return{expression:best[0],intensity:Math.min(1,best[1]*1.2)};
 }
-
 function smoothExpr(current,target,alpha=0.1){
   if(current.expression===target.expression)return{expression:current.expression,intensity:current.intensity+(target.intensity-current.intensity)*alpha};
   if(current.intensity>0.05)return{expression:current.expression,intensity:current.intensity*(1-alpha*2)};
   return{expression:target.expression,intensity:target.intensity*alpha};
 }
 
-// ─── Audio Analyzer Hook ──────────────────────────────────────────────────────
-const {useState,useEffect,useRef,useCallback}=React;
-
+// ─── Audio Hook ───────────────────────────────────────────────────────────────
+const{useState,useEffect,useRef,useCallback,useMemo}=React;
 function useAudioAnalyzer(enabled){
   const[metrics,setMetrics]=useState({volume:0,speechRate:0,pitch:0,tonality:0,pauseDuration:0,isSpeaking:false,malaysianScore:{tooSoft:0,fillerRhythm:0,tooFast:0,monotone:0,longPause:0,overall:0}});
-  const[error,setError]=useState(null);
-  const[active,setActive]=useState(false);
-  const refs=useRef({ctx:null,analyser:null,stream:null,raf:null,h:{volumes:[],pitches:[],speechOnsets:[],silenceStart:null,lastSpeechTime:null,pitchHistory:[],pauseHistory:[]}});
-
-  const stop=useCallback(()=>{
-    const r=refs.current;
-    if(r.raf)cancelAnimationFrame(r.raf);
-    if(r.stream)r.stream.getTracks().forEach(t=>t.stop());
-    if(r.ctx)r.ctx.close();
-    r.ctx=r.analyser=r.stream=null;
-    setActive(false);
-    setMetrics(p=>({...p,volume:0,isSpeaking:false}));
-  },[]);
-
-  useEffect(()=>{
-    if(!enabled){stop();return;}
-    (async()=>{
-      try{
-        const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
-        const audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-        const analyser=audioCtx.createAnalyser();
-        analyser.fftSize=2048; analyser.smoothingTimeConstant=0.8;
-        audioCtx.createMediaStreamSource(stream).connect(analyser);
-        refs.current.ctx=audioCtx; refs.current.analyser=analyser; refs.current.stream=stream;
-        setActive(true); setError(null);
-      }catch(e){setError(e.message||'Mic denied');}
-    })();
-    return stop;
-  },[enabled,stop]);
-
-  useEffect(()=>{
-    if(!active||!refs.current.analyser)return;
-    const analyser=refs.current.analyser, h=refs.current.h;
-    const tdBuf=new Float32Array(analyser.fftSize);
-    let lastT=performance.now();
-    const WINDOW=3000;
-    function analyze(){
-      refs.current.raf=requestAnimationFrame(analyze);
-      const now=performance.now();
-      if(now-lastT<16)return; lastT=now;
-      analyser.getFloatTimeDomainData(tdBuf);
-      let sum=0; for(const v of tdBuf)sum+=v*v;
-      const rms=Math.sqrt(sum/tdBuf.length), vol=Math.min(1,rms*8), speaking=rms>0.015;
-      if(!speaking){if(!h.silenceStart)h.silenceStart=now;}
-      else{if(h.silenceStart){h.pauseHistory.push({time:now,d:now-h.silenceStart});h.silenceStart=null;}h.speechOnsets.push(now);}
-      let pitch=0;
-      if(speaking){
-        const SR=refs.current.ctx?.sampleRate||44100, SIZE=tdBuf.length, MAX=Math.floor(SIZE/2);
-        let best=0,bestP=-1;
-        for(let o=80;o<MAX;o++){let c=0;for(let i=0;i<MAX;i++)c+=tdBuf[i]*tdBuf[i+o];if(c>best){best=c;bestP=o;}}
-        if(bestP>0&&best>0.01)pitch=SR/bestP;
-      }
+  const[error,setError]=useState(null);const[active,setActive]=useState(false);
+  const refs=useRef({ctx:null,analyser:null,stream:null,raf:null,h:{volumes:[],speechOnsets:[],silenceStart:null,pitchHistory:[],pauseHistory:[]}});
+  const stop=useCallback(()=>{const r=refs.current;if(r.raf)cancelAnimationFrame(r.raf);if(r.stream)r.stream.getTracks().forEach(t=>t.stop());if(r.ctx)r.ctx.close();r.ctx=r.analyser=r.stream=null;setActive(false);setMetrics(p=>({...p,volume:0,isSpeaking:false}));},[]);
+  useEffect(()=>{if(!enabled){stop();return;}(async()=>{try{const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});const audioCtx=new(window.AudioContext||window.webkitAudioContext)();const analyser=audioCtx.createAnalyser();analyser.fftSize=2048;analyser.smoothingTimeConstant=0.8;audioCtx.createMediaStreamSource(stream).connect(analyser);refs.current.ctx=audioCtx;refs.current.analyser=analyser;refs.current.stream=stream;setActive(true);setError(null);}catch(e){setError(e.message||'Mic denied');}})();return stop;},[enabled,stop]);
+  useEffect(()=>{if(!active||!refs.current.analyser)return;const analyser=refs.current.analyser,h=refs.current.h;const tdBuf=new Float32Array(analyser.fftSize);let lastT=performance.now();const WINDOW=3000;
+    function analyze(){refs.current.raf=requestAnimationFrame(analyze);const now=performance.now();if(now-lastT<16)return;lastT=now;analyser.getFloatTimeDomainData(tdBuf);let sum=0;for(const v of tdBuf)sum+=v*v;const rms=Math.sqrt(sum/tdBuf.length),vol=Math.min(1,rms*8),speaking=rms>0.015;
+      if(!speaking){if(!h.silenceStart)h.silenceStart=now;}else{if(h.silenceStart){h.pauseHistory.push({time:now,d:now-h.silenceStart});h.silenceStart=null;}h.speechOnsets.push(now);}
+      let pitch=0;if(speaking){const SR=refs.current.ctx?.sampleRate||44100,SIZE=tdBuf.length,MAX=Math.floor(SIZE/2);let best=0,bestP=-1;for(let o=80;o<MAX;o++){let c=0;for(let i=0;i<MAX;i++)c+=tdBuf[i]*tdBuf[i+o];if(c>best){best=c;bestP=o;}}if(bestP>0&&best>0.01)pitch=SR/bestP;}
       if(pitch>0)h.pitchHistory.push({time:now,pitch});
-      const cut=now-WINDOW;
-      h.pitchHistory=h.pitchHistory.filter(p=>p.time>cut);
-      h.pauseHistory=h.pauseHistory.filter(p=>p.time>cut);
-      h.speechOnsets=h.speechOnsets.filter(t=>t>cut);
-      h.volumes.push({time:now,v:vol}); h.volumes=h.volumes.filter(v=>v.time>cut);
+      const cut=now-WINDOW;h.pitchHistory=h.pitchHistory.filter(p=>p.time>cut);h.pauseHistory=h.pauseHistory.filter(p=>p.time>cut);h.speechOnsets=h.speechOnsets.filter(t=>t>cut);h.volumes=h.volumes||[];h.volumes.push({time:now,v:vol});h.volumes=h.volumes.filter(v=>v.time>cut);
       const speechRate=h.speechOnsets.length>2?(h.speechOnsets.length/(WINDOW/1000))*0.18:0;
       const avgPitch=h.pitchHistory.length>0?h.pitchHistory.reduce((a,b)=>a+b.pitch,0)/h.pitchHistory.length:0;
-      let pitchVar=0;
-      if(h.pitchHistory.length>4){const m=avgPitch;pitchVar=Math.sqrt(h.pitchHistory.reduce((a,b)=>a+Math.pow(b.pitch-m,2),0)/h.pitchHistory.length);}
-      const tonality=Math.min(1,pitchVar/80);
-      const pause=h.silenceStart?Math.min(1,(now-h.silenceStart)/4000):0;
+      let pitchVar=0;if(h.pitchHistory.length>4){const m=avgPitch;pitchVar=Math.sqrt(h.pitchHistory.reduce((a,b)=>a+Math.pow(b.pitch-m,2),0)/h.pitchHistory.length);}
+      const tonality=Math.min(1,pitchVar/80),pause=h.silenceStart?Math.min(1,(now-h.silenceStart)/4000):0;
       const avgVol=h.volumes.reduce((a,b)=>a+b.v,0)/Math.max(1,h.volumes.length);
-      const tooSoft=avgVol<0.25&&speaking?Math.min(1,(0.25-avgVol)*5):0;
-      const tooFast=speechRate>0.75?Math.min(1,(speechRate-0.75)*3):0;
-      const monotone=speaking?Math.max(0,1-tonality*2.5):0;
-      const longPause=pause>0.6?(pause-0.6)*2.5:0;
-      const ro=h.speechOnsets.filter(t=>t>now-2000);
-      let fillerRhythm=0;
+      const tooSoft=avgVol<0.25&&speaking?Math.min(1,(0.25-avgVol)*5):0,tooFast=speechRate>0.75?Math.min(1,(speechRate-0.75)*3):0;
+      const monotone=speaking?Math.max(0,1-tonality*2.5):0,longPause=pause>0.6?(pause-0.6)*2.5:0;
+      const ro=h.speechOnsets.filter(t=>t>now-2000);let fillerRhythm=0;
       for(let i=1;i<ro.length-1;i++){const g1=ro[i]-ro[i-1],g2=ro[i+1]-ro[i];if(g1>80&&g1<350&&g2>80&&g2<350)fillerRhythm+=0.25;}
       fillerRhythm=Math.min(1,fillerRhythm);
       const overall=Math.min(1,tooSoft*0.25+tooFast*0.2+monotone*0.25+longPause*0.2+fillerRhythm*0.1);
@@ -446,156 +198,160 @@ function useAudioAnalyzer(enabled){
     refs.current.raf=requestAnimationFrame(analyze);
     return()=>{if(refs.current.raf)cancelAnimationFrame(refs.current.raf);};
   },[active]);
-
   return{metrics,error,active};
 }
 
 // ─── Components ───────────────────────────────────────────────────────────────
 function FaceCanvas({face,size=72}){
   const ref=useRef(null);
-  useEffect(()=>{
-    const c=ref.current; if(!c)return;
-    drawFace(c.getContext('2d'),face,size,size,face.expression||'neutral',face.expressionIntensity||0);
-  },[face,size]);
-  return <canvas ref={ref} width={size} height={size} style={{borderRadius:6,display:'block'}} />;
+  useEffect(()=>{const c=ref.current;if(!c)return;drawFace(c.getContext('2d'),face,size,size,face.expression||'neutral',face.expressionIntensity||0);},[face,size]);
+  return <canvas ref={ref} width={size} height={size} style={{borderRadius:6,display:'block'}}/>;
+}
+const EXPR_EMOJI={engaged:'✨',amused:'😄',bored:'😴',confused:'🤔',distracted:'👀',concerned:'😟'};
+function AudienceGrid({faces}){
+  return <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(72px,1fr))',gap:4}}>
+    {faces.map(f=>(
+      <div key={f.id} style={{position:'relative'}} title={`${f.gender},${f.age}y,${f.ethnicity}—${f.expression}`}>
+        <FaceCanvas face={f} size={72}/>
+        {f.expressionIntensity>0.25&&f.expression!=='neutral'&&<div style={{position:'absolute',top:-2,right:-2,fontSize:11,pointerEvents:'none',textShadow:'0 1px 2px rgba(0,0,0,0.8)'}}>{EXPR_EMOJI[f.expression]||''}</div>}
+      </div>
+    ))}
+  </div>;
+}
+function MetricBar({label,value,color='#6366f1',warn=false,target=null}){
+  const bc=warn&&value>0.6?'#ef4444':color;
+  return <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11}}>
+    <span style={{width:80,color:'#94a3b8',flexShrink:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{label}</span>
+    <div style={{flex:1,height:4,borderRadius:2,background:'#1e293b',overflow:'hidden',position:'relative'}}>
+      {target&&<div style={{position:'absolute',top:0,height:'100%',left:`${target.min*100}%`,width:`${(target.max-target.min)*100}%`,background:'#4ade80',opacity:0.3,borderRadius:2}}/>}
+      <div style={{width:`${Math.round(value*100)}%`,height:'100%',borderRadius:2,background:bc,transition:'width 0.1s ease-out',position:'relative'}}/>
+    </div>
+    <span style={{width:26,textAlign:'right',color:'#64748b',fontSize:10}}>{Math.round(value*100)}</span>
+  </div>;
 }
 
-const EXPR_EMOJI={engaged:'✨',amused:'😄',bored:'😴',confused:'🤔',distracted:'👀',concerned:'😟'};
-
-function AudienceGrid({faces}){
-  return(
-    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(72px,1fr))',gap:4}}>
-      {faces.map(f=>(
-        <div key={f.id} style={{position:'relative'}} title={`${f.gender}, ${f.age}y, ${f.ethnicity} — ${f.expression}`}>
-          <FaceCanvas face={f} size={72}/>
-          {f.expressionIntensity>0.25&&f.expression!=='neutral'&&(
-            <div style={{position:'absolute',top:-2,right:-2,fontSize:11,pointerEvents:'none',textShadow:'0 1px 2px rgba(0,0,0,0.8)'}}>
-              {EXPR_EMOJI[f.expression]||''}
+// Vinh Score Ring
+function VinhPanel({vinhScore}){
+  const matchPct=vinhScore?.matchPct??null;
+  const dims=vinhScore?.dims??null;
+  const tip=vinhScore?.tip??null;
+  const ringColor=matchPct===null?'#334155':matchPct>=75?'#4ade80':matchPct>=50?'#fbbf24':'#f87171';
+  const circ=2*Math.PI*26;
+  const dash=matchPct!==null?(matchPct/100)*circ:0;
+  const dirColor={ok:'#4ade80',low:'#f59e0b',high:'#f87171'};
+  return <div style={{background:'#0d1f35',borderRadius:10,border:'1px solid rgba(255,255,255,0.07)',marginBottom:8,overflow:'hidden'}}>
+    <div style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
+      <div style={{position:'relative',width:56,height:56,flexShrink:0}}>
+        <svg width="56" height="56" style={{transform:'rotate(-90deg)'}}>
+          <circle cx="28" cy="28" r="26" fill="none" stroke="#1e293b" strokeWidth="5"/>
+          <circle cx="28" cy="28" r="26" fill="none" stroke={ringColor} strokeWidth="5" strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" style={{transition:'stroke-dasharray 0.4s ease'}}/>
+        </svg>
+        <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}}>
+          <span style={{fontSize:12,fontWeight:700,color:ringColor,lineHeight:1}}>{matchPct!==null?`${matchPct}%`:'—'}</span>
+          <span style={{fontSize:9,color:'#475569',lineHeight:1}}>match</span>
+        </div>
+      </div>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:12,fontWeight:700,color:'#e2e8f0'}}>Vinh Giang</div>
+        <div style={{fontSize:10,color:'#475569'}}>5 Vocal Foundations</div>
+        {tip&&<div style={{fontSize:10,color:'#fbbf24',marginTop:3,lineHeight:1.3}}>{tip}</div>}
+      </div>
+    </div>
+    <div style={{padding:'6px 12px'}}>
+      {VINH_FOUNDATIONS.map(f=>(
+        <div key={f.key} style={{display:'flex',alignItems:'center',gap:6,padding:'4px 0',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
+          <span style={{fontSize:13}}>{f.icon}</span>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <span style={{fontSize:10,fontWeight:600,color:'#cbd5e1'}}>{f.name}</span>
+              <span style={{fontSize:10,fontWeight:700,color:dims?dirColor[dims[f.key].dir]:'#475569'}}>{dims?dims[f.key].label:'—'}</span>
             </div>
-          )}
+            <div style={{fontSize:9,color:'#475569',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f.vinh}</div>
+          </div>
         </div>
       ))}
     </div>
-  );
+    {tip&&<div style={{margin:'0 10px 10px',padding:'6px 8px',borderRadius:6,background:'rgba(120,80,0,0.25)',border:'1px solid rgba(200,130,0,0.25)'}}>
+      <span style={{fontSize:10,color:'#fcd34d',lineHeight:1.4}}><b>Coach: </b>{tip}</span>
+    </div>}
+  </div>;
 }
 
-function MetricBar({label,value,color='#6366f1',warn=false}){
-  const c=warn&&value>0.6?'#ef4444':color;
-  return(
-    <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11}}>
-      <span style={{width:82,color:'#94a3b8',flexShrink:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{label}</span>
-      <div style={{flex:1,height:4,borderRadius:2,background:'#1e293b',overflow:'hidden'}}>
-        <div style={{width:`${Math.round(value*100)}%`,height:'100%',borderRadius:2,background:c,transition:'width 0.1s ease-out'}}/>
-      </div>
-      <span style={{width:28,textAlign:'right',color:'#64748b',fontSize:10}}>{Math.round(value*100)}</span>
-    </div>
-  );
-}
-
-const ASPECTS=[
-  {key:'volume',label:'Volume'},{key:'speechRate',label:'Speech Rate'},{key:'pitch',label:'Pitch'},
-  {key:'tonality',label:'Tonality'},{key:'pauses',label:'Pauses'},{key:'malaysianNorms',label:'🇲🇾 MY Norms'},
-];
-
-function ControlPanel({micEnabled,onToggleMic,metrics,error,active,enabledAspects,onToggleAspect,genderMode,onGenderChange,ageRange,onAgeRangeChange,faceCount,onFaceCountChange,onRegenerateFaces}){
+const ASPECTS=[{key:'volume',label:'Volume'},{key:'speechRate',label:'Speech Rate'},{key:'pitch',label:'Pitch'},{key:'tonality',label:'Tonality'},{key:'pauses',label:'Pauses'},{key:'malaysianNorms',label:'🇲🇾 MY Norms'}];
+function ControlPanel({micEnabled,onToggleMic,metrics,error,active,vinhScore,enabledAspects,onToggleAspect,genderMode,onGenderChange,ageRange,onAgeRangeChange,faceCount,onFaceCountChange,onRegenerateFaces}){
   const{volume,speechRate,pitch,tonality,pauseDuration,isSpeaking,malaysianScore}=metrics;
-  const card={background:'#0d1f35',borderRadius:10,padding:'10px 12px',border:'1px solid rgba(255,255,255,0.06)',marginBottom:8};
-  const label={fontSize:10,fontWeight:700,color:'#475569',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,display:'block'};
-  return(
-    <div style={{display:'flex',flexDirection:'column',height:'100%'}}>
-      <div style={{marginBottom:12}}>
-        <div style={{fontSize:16,fontWeight:700,color:'#e2e8f0',letterSpacing:'-0.5px'}}>Presentation Coach</div>
-        <div style={{fontSize:10,color:'#475569',marginTop:2}}>Malaysian audience simulator</div>
+  const card={background:'#0d1f35',borderRadius:10,padding:'10px 12px',border:'1px solid rgba(255,255,255,0.07)',marginBottom:8};
+  const lbl={fontSize:10,fontWeight:700,color:'#475569',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,display:'block'};
+  return <div style={{display:'flex',flexDirection:'column'}}>
+    <div style={{marginBottom:10}}>
+      <div style={{fontSize:15,fontWeight:700,color:'#e2e8f0',letterSpacing:'-0.5px'}}>Presentation Coach</div>
+      <div style={{fontSize:9,color:'#475569',marginTop:1}}>Malaysian audience · Vinh Giang benchmarks</div>
+    </div>
+    <div style={card}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:active?8:0}}>
+        <span style={{fontSize:12,color:'#94a3b8'}}>Microphone</span>
+        <button onClick={onToggleMic} style={{padding:'4px 10px',borderRadius:6,border:'none',cursor:'pointer',fontSize:11,fontWeight:600,background:micEnabled?'#dc2626':'#4f46e5',color:'white'}}>{micEnabled?'⏹ Stop':'🎙 Start'}</button>
       </div>
-
-      <div style={card}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:active?8:0}}>
-          <span style={{fontSize:12,color:'#94a3b8'}}>Microphone</span>
-          <button onClick={onToggleMic} style={{padding:'4px 10px',borderRadius:6,border:'none',cursor:'pointer',fontSize:11,fontWeight:600,background:micEnabled?'#dc2626':'#4f46e5',color:'white'}}>
-            {micEnabled?'⏹ Stop':'🎙 Start'}
-          </button>
-        </div>
-        {error&&<div style={{fontSize:10,color:'#f87171'}}>{error}</div>}
-        {active&&<div style={{display:'flex',alignItems:'center',gap:6}}>
-          <div style={{width:6,height:6,borderRadius:'50%',background:isSpeaking?'#4ade80':'#475569'}}/>
-          <span style={{fontSize:10,color:'#64748b'}}>{isSpeaking?'Speaking…':'Listening…'}</span>
-        </div>}
+      {error&&<div style={{fontSize:10,color:'#f87171'}}>{error}</div>}
+      {active&&<div style={{display:'flex',alignItems:'center',gap:6}}><div style={{width:6,height:6,borderRadius:'50%',background:isSpeaking?'#4ade80':'#475569'}}/><span style={{fontSize:10,color:'#64748b'}}>{isSpeaking?'Speaking…':'Listening…'}</span></div>}
+    </div>
+    <VinhPanel vinhScore={vinhScore}/>
+    <div style={card}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+        <span style={lbl}>Your Metrics</span>
+        <span style={{fontSize:9,color:'#334155'}}>🟩 Vinh zone</span>
       </div>
-
-      <div style={card}>
-        <span style={label}>Vocal Metrics</span>
-        <div style={{display:'flex',flexDirection:'column',gap:5}}>
-          <MetricBar label="Volume" value={volume} color="#22c55e"/>
-          <MetricBar label="Speech Rate" value={speechRate} color="#3b82f6" warn/>
-          <MetricBar label="Pitch" value={pitch} color="#a78bfa"/>
-          <MetricBar label="Tonality" value={tonality} color="#f59e0b"/>
-          <MetricBar label="Pause" value={pauseDuration} color="#f97316" warn/>
-        </div>
-      </div>
-
-      <div style={card}>
-        <span style={label}>🇲🇾 MY Norms</span>
-        <div style={{display:'flex',flexDirection:'column',gap:5}}>
-          <MetricBar label="Too Soft" value={malaysianScore.tooSoft} color="#ef4444" warn/>
-          <MetricBar label="Filler Rhythm" value={malaysianScore.fillerRhythm} color="#f59e0b" warn/>
-          <MetricBar label="Too Fast" value={malaysianScore.tooFast} color="#ef4444" warn/>
-          <MetricBar label="Monotone" value={malaysianScore.monotone} color="#ef4444" warn/>
-          <MetricBar label="Long Pause" value={malaysianScore.longPause} color="#f97316" warn/>
-        </div>
-        <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid rgba(255,255,255,0.06)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <span style={{fontSize:10,color:'#64748b'}}>Issues Score</span>
-          <span style={{fontSize:11,fontWeight:700,color:malaysianScore.overall>0.5?'#f87171':malaysianScore.overall>0.25?'#fbbf24':'#4ade80'}}>{Math.round(malaysianScore.overall*100)}%</span>
-        </div>
-      </div>
-
-      <div style={card}>
-        <span style={label}>Active Aspects</span>
-        <div style={{display:'flex',flexDirection:'column',gap:4}}>
-          {ASPECTS.map(({key,lbl,...a})=>(
-            <label key={key} style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:11,color:'#94a3b8'}}>
-              <input type="checkbox" checked={enabledAspects[key]} onChange={()=>onToggleAspect(key)} style={{accentColor:'#6366f1'}}/>
-              {a.label}
-            </label>
-          ))}
-        </div>
-      </div>
-
-      <div style={card}>
-        <span style={label}>Audience</span>
-        <div style={{fontSize:10,color:'#64748b',marginBottom:4}}>Gender</div>
-        <div style={{display:'flex',gap:4,marginBottom:10}}>
-          {['male','female','mixed'].map(g=>(
-            <button key={g} onClick={()=>onGenderChange(g)} style={{flex:1,padding:'4px 2px',borderRadius:5,border:'none',cursor:'pointer',fontSize:10,fontWeight:600,textTransform:'capitalize',background:genderMode===g?'#4f46e5':'#1e293b',color:genderMode===g?'white':'#64748b'}}>{g}</button>
-          ))}
-        </div>
-        <div style={{fontSize:10,color:'#64748b',marginBottom:2,display:'flex',justifyContent:'space-between'}}>
-          <span>Age Range</span><span style={{color:'#94a3b8'}}>{ageRange[0]}–{ageRange[1]}</span>
-        </div>
-        <input type="range" min={15} max={59} value={ageRange[0]} onChange={e=>onAgeRangeChange([+e.target.value,ageRange[1]])} className="slider-thumb" style={{marginBottom:4}}/>
-        <input type="range" min={16} max={60} value={ageRange[1]} onChange={e=>onAgeRangeChange([ageRange[0],+e.target.value])} className="slider-thumb" style={{marginBottom:10}}/>
-        <div style={{fontSize:10,color:'#64748b',marginBottom:2,display:'flex',justifyContent:'space-between'}}>
-          <span>Audience Size</span><span style={{color:'#94a3b8'}}>{faceCount}</span>
-        </div>
-        <input type="range" min={12} max={80} value={faceCount} onChange={e=>onFaceCountChange(+e.target.value)} className="slider-thumb" style={{marginBottom:10}}/>
-        <button onClick={onRegenerateFaces} style={{width:'100%',padding:'5px',borderRadius:6,border:'none',cursor:'pointer',fontSize:10,fontWeight:600,background:'#1e293b',color:'#94a3b8'}}>🔀 Regenerate Faces</button>
+      <div style={{display:'flex',flexDirection:'column',gap:5}}>
+        <MetricBar label="Volume"      value={volume}       color="#22c55e" target={VINH_TARGETS.volume}/>
+        <MetricBar label="Speech Rate" value={speechRate}   color="#3b82f6" warn target={VINH_TARGETS.speechRate}/>
+        <MetricBar label="Pitch"       value={pitch}        color="#a78bfa" target={VINH_TARGETS.pitch}/>
+        <MetricBar label="Tonality"    value={tonality}     color="#f59e0b" target={VINH_TARGETS.tonality}/>
+        <MetricBar label="Pause"       value={pauseDuration}color="#f97316" warn target={VINH_TARGETS.pause}/>
       </div>
     </div>
-  );
+    <div style={card}>
+      <span style={lbl}>🇲🇾 MY Norms</span>
+      <div style={{display:'flex',flexDirection:'column',gap:5}}>
+        <MetricBar label="Too Soft"      value={malaysianScore.tooSoft}     color="#ef4444" warn/>
+        <MetricBar label="Filler Rhythm" value={malaysianScore.fillerRhythm}color="#f59e0b" warn/>
+        <MetricBar label="Too Fast"      value={malaysianScore.tooFast}     color="#ef4444" warn/>
+        <MetricBar label="Monotone"      value={malaysianScore.monotone}    color="#ef4444" warn/>
+        <MetricBar label="Long Pause"    value={malaysianScore.longPause}   color="#f97316" warn/>
+      </div>
+      <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid rgba(255,255,255,0.06)',display:'flex',justifyContent:'space-between'}}>
+        <span style={{fontSize:10,color:'#64748b'}}>Issues</span>
+        <span style={{fontSize:11,fontWeight:700,color:malaysianScore.overall>0.5?'#f87171':malaysianScore.overall>0.25?'#fbbf24':'#4ade80'}}>{Math.round(malaysianScore.overall*100)}%</span>
+      </div>
+    </div>
+    <div style={card}>
+      <span style={lbl}>Active Aspects</span>
+      <div style={{display:'flex',flexDirection:'column',gap:4}}>
+        {ASPECTS.map(({key,label})=>(
+          <label key={key} style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:11,color:'#94a3b8'}}>
+            <input type="checkbox" checked={enabledAspects[key]} onChange={()=>onToggleAspect(key)} style={{accentColor:'#6366f1'}}/>{label}
+          </label>
+        ))}
+      </div>
+    </div>
+    <div style={card}>
+      <span style={lbl}>Audience</span>
+      <div style={{fontSize:10,color:'#64748b',marginBottom:4}}>Gender</div>
+      <div style={{display:'flex',gap:4,marginBottom:10}}>
+        {['male','female','mixed'].map(g=><button key={g} onClick={()=>onGenderChange(g)} style={{flex:1,padding:'4px 2px',borderRadius:5,border:'none',cursor:'pointer',fontSize:10,fontWeight:600,textTransform:'capitalize',background:genderMode===g?'#4f46e5':'#1e293b',color:genderMode===g?'white':'#64748b'}}>{g}</button>)}
+      </div>
+      <div style={{fontSize:10,color:'#64748b',marginBottom:2,display:'flex',justifyContent:'space-between'}}><span>Age Range</span><span style={{color:'#94a3b8'}}>{ageRange[0]}–{ageRange[1]}</span></div>
+      <input type="range" min={15} max={59} value={ageRange[0]} onChange={e=>onAgeRangeChange([+e.target.value,ageRange[1]])} className="slider-thumb" style={{marginBottom:4}}/>
+      <input type="range" min={16} max={60} value={ageRange[1]} onChange={e=>onAgeRangeChange([ageRange[0],+e.target.value])} className="slider-thumb" style={{marginBottom:10}}/>
+      <div style={{fontSize:10,color:'#64748b',marginBottom:2,display:'flex',justifyContent:'space-between'}}><span>Audience Size</span><span style={{color:'#94a3b8'}}>{faceCount}</span></div>
+      <input type="range" min={12} max={80} value={faceCount} onChange={e=>onFaceCountChange(+e.target.value)} className="slider-thumb" style={{marginBottom:10}}/>
+      <button onClick={onRegenerateFaces} style={{width:'100%',padding:'5px',borderRadius:6,border:'none',cursor:'pointer',fontSize:10,fontWeight:600,background:'#1e293b',color:'#94a3b8'}}>🔀 Regenerate Faces</button>
+    </div>
+  </div>;
 }
 
 // ─── App ─────────────────────────────────────────────────────────────────────
-const INIT_COUNT=54, DEFAULT_AGE=[20,55];
+const INIT_COUNT=54,DEFAULT_AGE=[20,55];
 const DEFAULT_ASPECTS={volume:true,speechRate:true,pitch:true,tonality:true,pauses:true,malaysianNorms:true};
-
-function getMalaysianTip(ms){
-  if(ms.tooSoft>0.5)return'Speak louder — project your voice';
-  if(ms.tooFast>0.5)return"Slow down — you're rushing";
-  if(ms.monotone>0.55)return'Vary your pitch — avoid flat delivery';
-  if(ms.longPause>0.6)return'Long silence — resume speaking';
-  if(ms.fillerRhythm>0.4)return'Watch filler words — uh/um patterns detected';
-  return'Check your delivery';
-}
-
 function App(){
   const[faces,setFaces]=useState(()=>regenerateFaces(INIT_COUNT,'mixed',DEFAULT_AGE[0],DEFAULT_AGE[1]));
   const[genderMode,setGenderMode]=useState('mixed');
@@ -604,27 +360,24 @@ function App(){
   const[micEnabled,setMicEnabled]=useState(false);
   const[enabledAspects,setEnabledAspects]=useState(DEFAULT_ASPECTS);
   const{metrics,error,active}=useAudioAnalyzer(micEnabled);
-  const timerRef=useRef(null), lastRippleRef=useRef(0);
-
+  const timerRef=useRef(null),lastRippleRef=useRef(0);
+  const vinhScore=useMemo(()=>computeVinhScore(metrics),[metrics]);
   const doRegen=useCallback((count,gender,age)=>setFaces(regenerateFaces(count,gender,age[0],age[1])),[]);
   const handleGender=useCallback(g=>{setGenderMode(g);doRegen(faceCount,g,ageRange);},[faceCount,ageRange,doRegen]);
   const handleAge=useCallback(range=>{const c=[Math.min(range[0],range[1]-1),Math.max(range[1],range[0]+1)];setAgeRange(c);doRegen(faceCount,genderMode,c);},[faceCount,genderMode,doRegen]);
   const handleCount=useCallback(n=>{setFaceCount(n);doRegen(n,genderMode,ageRange);},[genderMode,ageRange,doRegen]);
   const handleRegen=useCallback(()=>doRegen(faceCount,genderMode,ageRange),[faceCount,genderMode,ageRange,doRegen]);
   const handleAspect=useCallback(key=>setEnabledAspects(p=>({...p,[key]:!p[key]})),[]);
-
   useEffect(()=>{
     if(timerRef.current)clearInterval(timerRef.current);
     timerRef.current=setInterval(()=>{
       const now=Date.now();
       setFaces(prev=>{
-        let epi=-1;
-        if(now-lastRippleRef.current>1400&&metrics.isSpeaking){lastRippleRef.current=now;epi=Math.floor(Math.random()*prev.length);}
+        let epi=-1;if(now-lastRippleRef.current>1400&&metrics.isSpeaking){lastRippleRef.current=now;epi=Math.floor(Math.random()*prev.length);}
         const cols=Math.ceil(Math.sqrt(prev.length));
         return prev.map((face,i)=>{
           const target=computeTargetExpression(face,metrics,enabledAspects);
-          let alpha=0.1;
-          if(epi>=0){const er=Math.floor(epi/cols),ec=epi%cols,r=Math.floor(i/cols),c=i%cols,dist=Math.sqrt((r-er)**2+(c-ec)**2);alpha=0.1+0.15*Math.max(0,1-dist/6);}
+          let alpha=0.1;if(epi>=0){const er=Math.floor(epi/cols),ec=epi%cols,r=Math.floor(i/cols),c=i%cols,dist=Math.sqrt((r-er)**2+(c-ec)**2);alpha=0.1+0.15*Math.max(0,1-dist/6);}
           const smooth=smoothExpr({expression:face.expression,intensity:face.expressionIntensity},target,alpha);
           return{...face,expression:smooth.expression,expressionIntensity:smooth.intensity};
         });
@@ -632,53 +385,33 @@ function App(){
     },160);
     return()=>clearInterval(timerRef.current);
   },[metrics,enabledAspects]);
-
   const moodCounts=faces.reduce((acc,f)=>{acc[f.expression]=(acc[f.expression]||0)+1;return acc;},{});
   const topMood=Object.entries(moodCounts).sort((a,b)=>b[1]-a[1])[0];
   const engagedPct=Math.round(((moodCounts.engaged||0)+(moodCounts.amused||0))/faces.length*100);
-
-  return(
-    <div style={{display:'flex',minHeight:'100vh',background:'#0a1120'}}>
-      {/* Sidebar */}
-      <aside style={{width:224,flexShrink:0,borderRight:'1px solid rgba(255,255,255,0.06)',padding:'12px 10px',overflowY:'auto',background:'#0d1a2e'}}>
-        <ControlPanel micEnabled={micEnabled} onToggleMic={()=>setMicEnabled(v=>!v)} metrics={metrics} error={error} active={active}
-          enabledAspects={enabledAspects} onToggleAspect={handleAspect} genderMode={genderMode} onGenderChange={handleGender}
-          ageRange={ageRange} onAgeRangeChange={handleAge} faceCount={faceCount} onFaceCountChange={handleCount} onRegenerateFaces={handleRegen}/>
-      </aside>
-
-      {/* Main */}
-      <main style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
-        {/* Status bar */}
-        <div style={{display:'flex',alignItems:'center',gap:12,padding:'6px 14px',borderBottom:'1px solid rgba(255,255,255,0.06)',background:'#0d1a2e',fontSize:11,flexShrink:0,flexWrap:'wrap'}}>
-          <div style={{display:'flex',alignItems:'center',gap:6}}>
-            <div style={{width:6,height:6,borderRadius:'50%',background:active?'#4ade80':'#334155'}}/>
-            <span style={{color:'#64748b'}}>{active?'Live':'Paused'}</span>
-          </div>
-          <span style={{color:'#1e293b'}}>|</span>
-          <span style={{color:'#64748b'}}><span style={{color:'#e2e8f0',fontWeight:600}}>{faces.length}</span> audience</span>
-          <span style={{color:'#1e293b'}}>|</span>
-          <span style={{color:'#64748b'}}>Engaged: <span style={{fontWeight:700,color:engagedPct>60?'#4ade80':engagedPct>35?'#fbbf24':'#f87171'}}>{engagedPct}%</span></span>
-          {topMood&&<><span style={{color:'#1e293b'}}>|</span><span style={{color:'#64748b'}}>Top: <span style={{color:'#e2e8f0',fontWeight:600,textTransform:'capitalize'}}>{topMood[0]}</span></span></>}
-          {metrics.malaysianScore.overall>0.4&&<span style={{marginLeft:'auto',color:'#fbbf24',fontWeight:600}}>⚠ {getMalaysianTip(metrics.malaysianScore)}</span>}
-        </div>
-
-        {/* Grid */}
-        <div style={{flex:1,overflowY:'auto',padding:10}}>
-          <AudienceGrid faces={faces}/>
-        </div>
-
-        {/* Stage */}
-        <div style={{height:36,display:'flex',alignItems:'center',justifyContent:'center',borderTop:'1px solid rgba(255,255,255,0.06)',background:'linear-gradient(to top,#1e293b,#0d1a2e)',flexShrink:0}}>
-          <div style={{textAlign:'center'}}>
-            <div style={{width:120,height:3,background:'rgba(148,163,184,0.3)',borderRadius:2,margin:'0 auto 3px'}}/>
-            <span style={{fontSize:9,color:'#334155',letterSpacing:'0.15em',textTransform:'uppercase'}}>Stage</span>
-          </div>
-        </div>
-      </main>
-    </div>
-  );
+  return <div style={{display:'flex',minHeight:'100vh',background:'#0a1120'}}>
+    <aside style={{width:230,flexShrink:0,borderRight:'1px solid rgba(255,255,255,0.06)',padding:'12px 10px',overflowY:'auto',background:'#0d1a2e'}}>
+      <ControlPanel micEnabled={micEnabled} onToggleMic={()=>setMicEnabled(v=>!v)} metrics={metrics} error={error} active={active} vinhScore={vinhScore}
+        enabledAspects={enabledAspects} onToggleAspect={handleAspect} genderMode={genderMode} onGenderChange={handleGender}
+        ageRange={ageRange} onAgeRangeChange={handleAge} faceCount={faceCount} onFaceCountChange={handleCount} onRegenerateFaces={handleRegen}/>
+    </aside>
+    <main style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+      <div style={{display:'flex',alignItems:'center',gap:10,padding:'6px 14px',borderBottom:'1px solid rgba(255,255,255,0.06)',background:'#0d1a2e',fontSize:11,flexShrink:0,flexWrap:'wrap'}}>
+        <div style={{display:'flex',alignItems:'center',gap:6}}><div style={{width:6,height:6,borderRadius:'50%',background:active?'#4ade80':'#334155'}}/><span style={{color:'#64748b'}}>{active?'Live':'Paused'}</span></div>
+        <span style={{color:'#1e293b'}}>|</span>
+        <span style={{color:'#64748b'}}><span style={{color:'#e2e8f0',fontWeight:600}}>{faces.length}</span> audience</span>
+        <span style={{color:'#1e293b'}}>|</span>
+        <span style={{color:'#64748b'}}>Engaged: <span style={{fontWeight:700,color:engagedPct>60?'#4ade80':engagedPct>35?'#fbbf24':'#f87171'}}>{engagedPct}%</span></span>
+        {topMood&&<><span style={{color:'#1e293b'}}>|</span><span style={{color:'#64748b'}}>Top: <span style={{color:'#e2e8f0',fontWeight:600,textTransform:'capitalize'}}>{topMood[0]}</span></span></>}
+        {vinhScore!==null&&<><span style={{color:'#1e293b'}}>|</span><span style={{color:'#64748b'}}>Vinh match: <span style={{fontWeight:700,color:vinhScore.matchPct>=75?'#4ade80':vinhScore.matchPct>=50?'#fbbf24':'#f87171'}}>{vinhScore.matchPct}%</span></span></>}
+        {vinhScore?.tip&&<span style={{marginLeft:'auto',color:'#fbbf24',fontWeight:500,fontSize:10,maxWidth:280,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>💡 {vinhScore.tip}</span>}
+      </div>
+      <div style={{flex:1,overflowY:'auto',padding:10}}><AudienceGrid faces={faces}/></div>
+      <div style={{height:32,display:'flex',alignItems:'center',justifyContent:'center',borderTop:'1px solid rgba(255,255,255,0.06)',background:'linear-gradient(to top,#1e293b,#0d1a2e)',flexShrink:0}}>
+        <div style={{textAlign:'center'}}><div style={{width:100,height:2,background:'rgba(148,163,184,0.25)',borderRadius:1,margin:'0 auto 2px'}}/><span style={{fontSize:8,color:'#334155',letterSpacing:'0.15em',textTransform:'uppercase'}}>Stage</span></div>
+      </div>
+    </main>
+  </div>;
 }
-
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
 </body>

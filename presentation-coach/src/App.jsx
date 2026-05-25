@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import AudienceGrid from './components/AudienceGrid';
 import ControlPanel from './components/ControlPanel';
 import { regenerateFaces } from './utils/faceGenerator';
 import { computeTargetExpression, smoothTransitionExpression } from './utils/reactionEngine';
 import { useAudioAnalyzer } from './hooks/useAudioAnalyzer';
+import { computeVinhScore } from './utils/vinhScore';
 import './index.css';
 
 const INITIAL_COUNT = 54;
@@ -59,6 +60,8 @@ export default function App() {
   const handleToggleAspect = useCallback((key) => {
     setEnabledAspects(prev => ({ ...prev, [key]: !prev[key] }));
   }, []);
+
+  const vinhScore = useMemo(() => computeVinhScore(metrics), [metrics]);
 
   // Reaction update loop
   useEffect(() => {
@@ -126,6 +129,7 @@ export default function App() {
           metrics={metrics}
           error={error}
           active={active}
+          vinhScore={vinhScore}
           enabledAspects={enabledAspects}
           onToggleAspect={handleToggleAspect}
           genderMode={genderMode}
@@ -168,9 +172,20 @@ export default function App() {
               </span>
             </>
           )}
-          {metrics.malaysianScore.overall > 0.4 && (
-            <div className="ml-auto text-yellow-400 font-medium animate-pulse">
-              ⚠ {getMalaysianTip(metrics.malaysianScore)}
+          {vinhScore !== null && (
+            <>
+              <span className="text-slate-600">|</span>
+              <span className="text-slate-400">
+                Vinh match:{' '}
+                <span className={`font-bold ${vinhScore.matchPct >= 75 ? 'text-green-400' : vinhScore.matchPct >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+                  {vinhScore.matchPct}%
+                </span>
+              </span>
+            </>
+          )}
+          {vinhScore?.tip && (
+            <div className="ml-auto text-amber-400 font-medium text-xs max-w-xs truncate">
+              💡 {vinhScore.tip}
             </div>
           )}
         </div>
